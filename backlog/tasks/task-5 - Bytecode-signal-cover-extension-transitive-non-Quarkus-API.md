@@ -1,10 +1,10 @@
 ---
 id: TASK-5
 title: 'Bytecode signal: cover extension transitive non-Quarkus API'
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-08-01 11:53'
-updated_date: '2026-08-01 12:51'
+updated_date: '2026-08-01 13:52'
 labels: []
 dependencies: []
 ordinal: 5000
@@ -28,8 +28,14 @@ Design decisions (Fable):
 Execution delegated; Fable reviews and runs the bench.
 <!-- SECTION:PLAN:END -->
 
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Delivered with the declared-roots fix found via debug-trace diagnosis on the bench (two wrong hypotheses refuted by data before the real mechanism). Bench: suspects 7->6, kubernetes-client blind spot closed, prediction confirmed exactly. 45 tests. DoD: simplify + code-review high on the delta (5 findings, all fixed: evidence contract made structural, GA-collision handling, vestigial constructor, DESIGN traversal rule).
+<!-- SECTION:NOTES:END -->
+
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Run /simplify on the changed code and apply the cleanups it surfaces
-- [ ] #2 Run /code-review at high effort on the final diff and resolve every finding
+- [x] #1 Run /simplify on the changed code and apply the cleanups it surfaces
+- [x] #2 Run /code-review at high effort on the final diff and resolve every finding
 <!-- DOD:END -->
