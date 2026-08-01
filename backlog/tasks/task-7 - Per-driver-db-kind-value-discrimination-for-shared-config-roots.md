@@ -1,10 +1,10 @@
 ---
 id: TASK-7
 title: Per-driver db-kind value discrimination for shared config roots
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-08-01 17:03'
-updated_date: '2026-08-01 21:20'
+updated_date: '2026-08-01 21:49'
 labels: []
 dependencies: []
 ordinal: 7000
@@ -31,11 +31,11 @@ Execution delegated; Fable verifies both benches.
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-Third confirmed value-activation case from the second bench: io.smallrye.stork:stork-service-discovery-static-list (plain jar) selected by quarkus.stork.*.service-discovery.type=static. The value-rules design must cover plain-jar providers selected by config values, not only quarkus-* extensions.
+Delivered: rules table existence-verified (derby dropped, podman own artifact), suppression structural with dead-driver test, benches diffed mechanically (registry unchanged, rest-fights two exact flips). 82 tests. Rest-fights suspects now 3 extensions.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Run /simplify on the changed code and apply the cleanups it surfaces
-- [ ] #2 Run /code-review at high effort on the final diff and resolve every finding
+- [x] #1 Run /simplify on the changed code and apply the cleanups it surfaces
+- [x] #2 Run /code-review at high effort on the final diff and resolve every finding
 <!-- DOD:END -->
