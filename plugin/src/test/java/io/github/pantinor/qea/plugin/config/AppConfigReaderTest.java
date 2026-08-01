@@ -112,6 +112,53 @@ class AppConfigReaderTest {
         assertThat(cfg.allKeys()).containsExactlyInAnyOrder("quarkus.http.port", "8080.foo", "true.baz");
     }
 
+    /** TASK-7: {@link ValueRules} needs the raw value behind a key, not just its presence. */
+    @Test
+    void propertiesValuesAreCapturedPerBareKey(@TempDir Path dir) throws IOException {
+        Path file = write(dir, "application.properties",
+                "quarkus.datasource.h2.db-kind=h2\nquarkus.http.port=8080\n");
+
+        AppConfigReader cfg = AppConfigReader.readProperties(file);
+
+        assertThat(cfg.valuesByKey().get("quarkus.datasource.h2.db-kind")).containsExactly("h2");
+        assertThat(cfg.valuesByKey().get("quarkus.http.port")).containsExactly("8080");
+    }
+
+    /**
+     * TASK-7: "Keys may appear under any %profile prefix" -- values from different profiles merge into
+     * the same bare-key value set, e.g. rest-fights' {@code quarkus.container-image.builder} is
+     * {@code docker} unprefixed and {@code openshift} under {@code %openshift}/{@code %knative-openshift}.
+     */
+    @Test
+    void valuesFromDifferentProfilesMergeUnderTheSameBareKey(@TempDir Path dir) throws IOException {
+        Path file = write(dir, "application.properties", """
+                quarkus.container-image.builder=docker
+                %openshift.quarkus.container-image.builder=openshift
+                """);
+
+        AppConfigReader cfg = AppConfigReader.readProperties(file);
+
+        assertThat(cfg.valuesByKey().get("quarkus.container-image.builder"))
+                .containsExactlyInAnyOrder("docker", "openshift");
+    }
+
+    @Test
+    void yamlValuesAreCapturedPerBareKeyAcrossProfiles(@TempDir Path dir) throws IOException {
+        Path file = write(dir, "application.yaml", """
+                quarkus:
+                  datasource:
+                    db-kind: postgresql
+                "%dev":
+                  quarkus:
+                    datasource:
+                      db-kind: h2
+                """);
+
+        AppConfigReader cfg = AppConfigReader.readYaml(file);
+
+        assertThat(cfg.valuesByKey().get("quarkus.datasource.db-kind")).containsExactlyInAnyOrder("postgresql", "h2");
+    }
+
     @Test
     void emptyClaimSetProducesNoKeys(@TempDir Path dir) throws IOException {
         Path file = write(dir, "application.properties", "");
@@ -120,6 +167,7 @@ class AppConfigReaderTest {
 
         assertThat(cfg.allKeys()).isEmpty();
         assertThat(cfg.keysByProfile()).isEmpty();
+        assertThat(cfg.valuesByKey()).isEmpty();
     }
 
     @Test
@@ -128,6 +176,7 @@ class AppConfigReaderTest {
 
         assertThat(cfg.allKeys()).isEmpty();
         assertThat(cfg.keysByProfile()).isEmpty();
+        assertThat(cfg.valuesByKey()).isEmpty();
     }
 
     private static Path write(Path dir, String name, String content) throws IOException {

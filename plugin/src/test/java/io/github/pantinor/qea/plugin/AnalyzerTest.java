@@ -15,8 +15,11 @@
  */
 package io.github.pantinor.qea.plugin;
 
+import io.github.pantinor.qea.plugin.capability.CapabilityJoin;
 import io.github.pantinor.qea.plugin.configroot.ConfigRootProbe;
+import io.github.pantinor.qea.plugin.configroot.ConfigRootSource;
 import io.github.pantinor.qea.plugin.configroot.RootInheritance;
+import io.github.pantinor.qea.plugin.configroot.ValueRules;
 import io.github.pantinor.qea.plugin.report.ExtensionReport;
 import io.github.pantinor.qea.plugin.report.Verdict;
 import io.quarkus.maven.dependency.ResolvedDependency;
@@ -352,7 +355,7 @@ class AnalyzerTest {
                 "jakarta.validation:jakarta.validation-api", List.of("io.quarkus:quarkus-apicurio-registry-avro")));
 
         ExtensionReport row = Analyzer.classifyExtension(dep, new ConfigRootProbe.Probe(), Map.of(), Map.of(),
-                new RootInheritance.Result(Map.of(), Set.of()), false, Map.of(), null, hint);
+                new RootInheritance.Result(Map.of(), Set.of()), false, Map.of(), null, hint, null, null);
 
         assertThat(row.verdict()).isEqualTo(Verdict.SUSPECT);
         assertThat(row.sharedReferencedJars()).isEqualTo(hint);
@@ -373,9 +376,166 @@ class AnalyzerTest {
                 "jakarta.validation:jakarta.validation-api", List.of("io.quarkus:quarkus-apicurio-registry-avro")));
 
         ExtensionReport row = Analyzer.classifyExtension(dep, new ConfigRootProbe.Probe(), Map.of(), Map.of(),
-                new RootInheritance.Result(Map.of(), Set.of()), true, Map.of(), null, hint);
+                new RootInheritance.Result(Map.of(), Set.of()), true, Map.of(), null, hint, null, null);
 
         assertThat(row.verdict()).isEqualTo(Verdict.USED_BYTECODE);
         assertThat(row.sharedReferencedJars()).isEmpty();
+    }
+
+    // --- TASK-7: value-based activation rules, integration through classifyExtension/classifyPlainJar -
+
+    private static ResolvedDependency extensionDep(String groupId, String artifactId) {
+        return ResolvedDependencyBuilder.newInstance().setGroupId(groupId).setArtifactId(artifactId)
+                .setVersion("1.0").setRuntimeExtensionArtifact().setDirect(true).build();
+    }
+
+    private static ResolvedDependency plainJarDep(String groupId, String artifactId) {
+        return ResolvedDependencyBuilder.newInstance().setGroupId(groupId).setArtifactId(artifactId)
+                .setVersion("1.0").setDirect(true).build();
+    }
+
+    /**
+     * TASK-7, plan item 2: a value-rule match marks the target extension used-config even though it has
+     * no own root and no inherited root at all (e.g. an app that only sets a named db-kind, with no
+     * other {@code quarkus.datasource.*} key present for {@link io.github.pantinor.qea.plugin.configroot.
+     * RootInheritance} to have inherited in the first place).
+     */
+    @Test
+    void classifyExtensionUsesValueRuleMatchWhenNoOwnOrInheritedKeyMatched() {
+        ResolvedDependency dep = extensionDep("io.quarkus", "quarkus-jdbc-postgresql");
+        ValueRules.Match match = new ValueRules.Match("io.quarkus:quarkus-jdbc-postgresql",
+                "quarkus.datasource.postgresql.db-kind", "postgresql", "quarkus.datasource.{name}.db-kind");
+
+        ExtensionReport row = Analyzer.classifyExtension(dep, new ConfigRootProbe.Probe(), Map.of(), Map.of(),
+                new RootInheritance.Result(Map.of(), Set.of()), false, Map.of(), null, List.of(), match, null);
+
+        assertThat(row.verdict()).isEqualTo(Verdict.USED_CONFIG);
+        assertThat(row.configInherited()).isFalse();
+        assertThat(row.configSource()).containsExactly(ConfigRootSource.VALUE_RULE);
+        assertThat(row.configMatchedKeys()).containsExactly("quarkus.datasource.postgresql.db-kind");
+        assertThat(row.valueRuleEvidence())
+                .isEqualTo("selected by quarkus.datasource.postgresql.db-kind=postgresql");
+    }
+
+    /**
+     * TASK-7, plan item 2: "stronger than family inheritance" -- when BOTH a value-rule match and a
+     * blanket inherited root are present for the same extension, the value-rule evidence wins (the
+     * report must not claim the vaguer "inherited" provenance when the precise one is available).
+     */
+    @Test
+    void classifyExtensionPrefersValueRuleMatchOverBlanketInheritance() {
+        ResolvedDependency dep = extensionDep("io.quarkus", "quarkus-jdbc-h2");
+        Map<String, List<String>> inheritedKeysByGa =
+                Map.of("io.quarkus:quarkus-jdbc-h2", List.of("quarkus.datasource.h2.jdbc.url"));
+        RootInheritance.Result inheritance = new RootInheritance.Result(
+                Map.of("io.quarkus:quarkus-jdbc-h2",
+                        Set.of(new RootInheritance.InheritedRoot("quarkus.datasource.", "io.quarkus:quarkus-agroal"))),
+                Set.of());
+        ValueRules.Match match = new ValueRules.Match("io.quarkus:quarkus-jdbc-h2", "quarkus.datasource.h2.db-kind",
+                "h2", "quarkus.datasource.{name}.db-kind");
+
+        ExtensionReport row = Analyzer.classifyExtension(dep, new ConfigRootProbe.Probe(), Map.of(), inheritedKeysByGa,
+                inheritance, false, Map.of(), null, List.of(), match, null);
+
+        assertThat(row.verdict()).isEqualTo(Verdict.USED_CONFIG);
+        assertThat(row.configInherited()).isFalse();
+        assertThat(row.configSource()).containsExactly(ConfigRootSource.VALUE_RULE);
+    }
+
+    /**
+     * TASK-7, plan item 3 (the db-kind discrimination case): a suppression on this extension means its
+     * family's selector key IS present in the config but picked a sibling, not this one -- the blanket
+     * inherited signal must not be trusted, and the row falls through to SUSPECT (no other signal fires
+     * here) with a note naming the selector and the values actually seen.
+     */
+    @Test
+    void classifyExtensionSuppressesInheritedEvidenceAndFallsBackToSuspect() {
+        ResolvedDependency dep = extensionDep("io.quarkus", "quarkus-jdbc-oracle");
+        Map<String, List<String>> inheritedKeysByGa =
+                Map.of("io.quarkus:quarkus-jdbc-oracle", List.of("quarkus.datasource.jdbc.metrics.enabled"));
+        RootInheritance.Result inheritance = new RootInheritance.Result(
+                Map.of("io.quarkus:quarkus-jdbc-oracle",
+                        Set.of(new RootInheritance.InheritedRoot("quarkus.datasource.", "io.quarkus:quarkus-agroal"))),
+                Set.of());
+        ValueRules.Suppression suppression = new ValueRules.Suppression("io.quarkus:quarkus-jdbc-oracle",
+                "quarkus.datasource.{name}.db-kind", Set.of("quarkus.datasource.h2.db-kind"), Set.of("h2"));
+
+        ExtensionReport row = Analyzer.classifyExtension(dep, new ConfigRootProbe.Probe(), Map.of(), inheritedKeysByGa,
+                inheritance, false, Map.of(), null, List.of(), null, suppression);
+
+        assertThat(row.verdict()).isEqualTo(Verdict.SUSPECT);
+        assertThat(row.configInherited()).isFalse();
+        assertThat(row.note()).isEqualTo("family keys present but no selecting value matches "
+                + "(selector quarkus.datasource.{name}.db-kind = [h2])");
+    }
+
+    /**
+     * TASK-7, plan item 3: suppression only removes the INHERITED path -- a capability edge is a
+     * different, independent signal and must still fire normally underneath a suppressed extension.
+     */
+    @Test
+    void classifyExtensionSuppressionFallsBackToCapabilityWhenOneFires() {
+        ResolvedDependency dep = extensionDep("io.quarkus", "quarkus-jdbc-oracle");
+        Map<String, List<String>> inheritedKeysByGa =
+                Map.of("io.quarkus:quarkus-jdbc-oracle", List.of("quarkus.datasource.jdbc.metrics.enabled"));
+        RootInheritance.Result inheritance = new RootInheritance.Result(
+                Map.of("io.quarkus:quarkus-jdbc-oracle",
+                        Set.of(new RootInheritance.InheritedRoot("quarkus.datasource.", "io.quarkus:quarkus-agroal"))),
+                Set.of());
+        ValueRules.Suppression suppression = new ValueRules.Suppression("io.quarkus:quarkus-jdbc-oracle",
+                "quarkus.datasource.{name}.db-kind", Set.of("quarkus.datasource.h2.db-kind"), Set.of("h2"));
+        CapabilityJoin.Edge edge =
+                new CapabilityJoin.Edge("io.quarkus:quarkus-agroal", "cap.example", "io.quarkus:quarkus-jdbc-oracle");
+        Map<String, CapabilityJoin.Edge> capabilityNewlyUsed = Map.of("io.quarkus:quarkus-jdbc-oracle", edge);
+
+        ExtensionReport row = Analyzer.classifyExtension(dep, new ConfigRootProbe.Probe(), Map.of(), inheritedKeysByGa,
+                inheritance, false, capabilityNewlyUsed, null, List.of(), null, suppression);
+
+        assertThat(row.verdict()).isEqualTo(Verdict.USED_CAPABILITY);
+    }
+
+    /** TASK-7: a plain jar (Stork static-list case) can be used-config via a value rule alone. */
+    @Test
+    void classifyPlainJarUsesValueRuleMatchWhenNotReferencedByBytecode() {
+        ResolvedDependency dep = plainJarDep("io.smallrye.stork", "stork-service-discovery-static-list");
+        ValueRules.Match match = new ValueRules.Match("io.smallrye.stork:stork-service-discovery-static-list",
+                "quarkus.stork.hero-service.service-discovery.type", "static",
+                "quarkus.stork.{name}.service-discovery.type");
+
+        ExtensionReport row = Analyzer.classifyPlainJar(dep, Set.of(), Map.of(), match);
+
+        assertThat(row.verdict()).isEqualTo(Verdict.USED_CONFIG);
+        assertThat(row.quarkusExtension()).isFalse();
+        assertThat(row.configSource()).containsExactly(ConfigRootSource.VALUE_RULE);
+        assertThat(row.valueRuleEvidence()).isEqualTo(
+                "selected by quarkus.stork.hero-service.service-discovery.type=static");
+    }
+
+    /** A direct bytecode reference is still the strongest signal, even when a value rule also matches. */
+    @Test
+    void classifyPlainJarBytecodeReferenceTakesPriorityOverValueRuleMatch() {
+        ResolvedDependency dep = plainJarDep("io.smallrye.stork", "stork-service-discovery-static-list");
+        Map<String, Analyzer.PlainJarScan> scans = Map.of("io.smallrye.stork:stork-service-discovery-static-list",
+                Analyzer.PlainJarScan.ok(Set.of("io.smallrye.stork.servicediscovery.staticlist.Provider")));
+        Set<String> asmReferenced = Set.of("io.smallrye.stork.servicediscovery.staticlist.Provider");
+        ValueRules.Match match = new ValueRules.Match("io.smallrye.stork:stork-service-discovery-static-list",
+                "quarkus.stork.hero-service.service-discovery.type", "static",
+                "quarkus.stork.{name}.service-discovery.type");
+
+        ExtensionReport row = Analyzer.classifyPlainJar(dep, asmReferenced, scans, match);
+
+        assertThat(row.verdict()).isEqualTo(Verdict.USED_BYTECODE);
+        assertThat(row.valueRuleEvidence()).isNull();
+    }
+
+    /** No bytecode reference and no value-rule match: stays suspect, unchanged pre-TASK-7 behavior. */
+    @Test
+    void classifyPlainJarStaysSuspectWithoutBytecodeOrValueRuleMatch() {
+        ResolvedDependency dep = plainJarDep("io.grpc", "grpc-services");
+
+        ExtensionReport row = Analyzer.classifyPlainJar(dep, Set.of(), Map.of(), null);
+
+        assertThat(row.verdict()).isEqualTo(Verdict.SUSPECT);
+        assertThat(row.valueRuleEvidence()).isNull();
     }
 }

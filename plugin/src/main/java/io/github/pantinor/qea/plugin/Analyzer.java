@@ -23,6 +23,7 @@ import io.github.pantinor.qea.plugin.configroot.ConfigRootProbe;
 import io.github.pantinor.qea.plugin.configroot.ConfigRootSource;
 import io.github.pantinor.qea.plugin.configroot.RootAttributor;
 import io.github.pantinor.qea.plugin.configroot.RootInheritance;
+import io.github.pantinor.qea.plugin.configroot.ValueRules;
 import io.github.pantinor.qea.plugin.model.ExtensionNode;
 import io.github.pantinor.qea.plugin.report.AnalysisReport;
 import io.github.pantinor.qea.plugin.report.ExtensionReport;
@@ -125,6 +126,13 @@ public final class Analyzer {
         Map<String, List<String>> keysWonByOwner = RootAttributor.byOwner(attributions);
         Map<String, List<String>> inheritedKeysByGa = inheritedKeysByGa(inheritance, keysWonByOwner);
 
+        // --- signal 1b (TASK-7): curated value-based activation rules (db-kind, container-image
+        // builder, stork static-list) -- applies to extensions AND plain jars alike, see ValueRules.
+        ValueRules valueRules = ValueRules.loadDefault();
+        Map<String, ValueRules.Match> valueRuleMatches = valueRules.matches(appConfig.valuesByKey());
+        Map<String, ValueRules.Suppression> valueRuleSuppressions =
+                valueRules.suppressions(appConfig.valuesByKey(), valueRuleMatches);
+
         // --- signal 2: bytecode -------------------------------------------------------------------
         // Extension jars were already Jandexed while probing signal 1 (ConfigRootProbe.Probe#containedClasses),
         // so no second jar scan is needed here for them; only plain jars still need one, run concurrently below.
@@ -181,8 +189,13 @@ public final class Analyzer {
         Set<String> usedByConfigOrBytecode = new HashSet<>();
         for (ResolvedDependency d : allExtensions) {
             String gaKey = ga(d);
+            // TASK-7: a suppressed inherited signal must not seed the capability join either -- the whole
+            // point of suppression is that the blanket family root cannot tell this GA apart from its
+            // siblings, so it must not count as "used" for ANY downstream purpose, not just the report row.
+            boolean viaInheritance = inheritedKeysByGa.containsKey(gaKey) && !valueRuleSuppressions.containsKey(gaKey);
             if (!keysWonByOwner.getOrDefault(gaKey, List.of()).isEmpty()
-                    || inheritedKeysByGa.containsKey(gaKey)
+                    || viaInheritance
+                    || valueRuleMatches.containsKey(gaKey)
                     || bytecodeUsedByGa.getOrDefault(gaKey, false)) {
                 usedByConfigOrBytecode.add(gaKey);
             }
@@ -209,9 +222,10 @@ public final class Analyzer {
                 rows.add(classifyExtension(d, probes.get(gaKey), keysWonByOwner, inheritedKeysByGa, inheritance,
                         bytecodeUsedByGa.getOrDefault(gaKey, false), capabilityNewlyUsed,
                         transitiveApiEvidenceByGa.get(gaKey),
-                        sharedReferencedJarsHintByGa.getOrDefault(gaKey, List.of())));
+                        sharedReferencedJarsHintByGa.getOrDefault(gaKey, List.of()),
+                        valueRuleMatches.get(gaKey), valueRuleSuppressions.get(gaKey)));
             } else {
-                rows.add(classifyPlainJar(d, asmReferenced, plainJarScans));
+                rows.add(classifyPlainJar(d, asmReferenced, plainJarScans, valueRuleMatches.get(gaKey)));
             }
         }
         rows.sort((a, b) -> a.ga().compareTo(b.ga()));
@@ -595,7 +609,8 @@ public final class Analyzer {
             Map<String, List<String>> keysWonByOwner, Map<String, List<String>> inheritedKeysByGa,
             RootInheritance.Result inheritance, boolean bytecodeReferenced,
             Map<String, CapabilityJoin.Edge> capabilityNewlyUsed, String bytecodeViaTransitiveApi,
-            List<ExtensionReport.SharedReferencedJar> sharedReferencedJarsHint) {
+            List<ExtensionReport.SharedReferencedJar> sharedReferencedJarsHint, ValueRules.Match valueMatch,
+            ValueRules.Suppression suppression) {
         String gaKey = ga(d);
 
         List<String> ownKeys = keysWonByOwner.getOrDefault(gaKey, List.of());
@@ -603,6 +618,10 @@ public final class Analyzer {
         // CapabilityJoin only records GAs newly added on top of the initially-used seed set, so a hit
         // here already implies this extension was not used by config or bytecode.
         CapabilityJoin.Edge capabilityEdge = capabilityNewlyUsed.get(gaKey);
+        // TASK-7, plan item 3: a non-null suppression means this GA is covered by a value-rules family
+        // whose selector key(s) are present in the app config, but no value selected THIS GA -- the
+        // blanket inherited signal must not be trusted for it, verdict falls back to later signals.
+        boolean inheritanceSuppressed = suppression != null;
 
         Verdict verdict;
         boolean inherited = false;
@@ -611,6 +630,7 @@ public final class Analyzer {
         Set<ConfigRootSource> configSource = Set.of();
         List<RootInheritance.InheritedRoot> inheritedRoots = List.of();
         String note = null;
+        String valueRuleEvidence = null;
         // TASK-11: only ever set on the two SUSPECT-producing branches below -- this is what makes "the
         // hint never upgrades the verdict" a structural property of this method, not just documented.
         List<ExtensionReport.SharedReferencedJar> sharedReferencedJars = List.of();
@@ -622,7 +642,13 @@ public final class Analyzer {
             configRoots.addAll(probe.roots());
             configMatchedKeys = ownKeys;
             configSource = probe.sourcesOf(probe.roots());
-        } else if (inheritedKeys != null) {
+        } else if (valueMatch != null) {
+            // TASK-7, plan item 2: stronger than family inheritance -- checked ahead of inheritedKeys.
+            verdict = Verdict.USED_CONFIG;
+            configMatchedKeys = List.of(valueMatch.key());
+            configSource = Set.of(ConfigRootSource.VALUE_RULE);
+            valueRuleEvidence = "selected by " + valueMatch.key() + "=" + valueMatch.value();
+        } else if (inheritedKeys != null && !inheritanceSuppressed) {
             verdict = Verdict.USED_CONFIG;
             inherited = true;
             inheritedRoots = new ArrayList<>(inheritance.inherited().get(gaKey));
@@ -639,11 +665,13 @@ public final class Analyzer {
             verdict = Verdict.SUSPECT;
             configRoots.addAll(probe.roots());
             configSource = probe.sourcesOf(probe.roots());
-            note = "config roots known, but no application key falls under them";
+            note = inheritanceSuppressed ? suppressionNote(suppression)
+                    : "config roots known, but no application key falls under them";
             sharedReferencedJars = sharedReferencedJarsHint;
         } else {
             verdict = Verdict.SUSPECT;
-            note = "no config-root metadata found in the runtime or deployment jar";
+            note = inheritanceSuppressed ? suppressionNote(suppression)
+                    : "no config-root metadata found in the runtime or deployment jar";
             sharedReferencedJars = sharedReferencedJarsHint;
         }
 
@@ -655,7 +683,13 @@ public final class Analyzer {
 
         return new ExtensionReport(gaKey, true, verdict, inherited, configRoots, configMatchedKeys, configSource,
                 inheritedRoots, bytecodeReferenced, capabilityEvidence, note, bytecodeViaTransitiveApi,
-                sharedReferencedJars);
+                valueRuleEvidence, sharedReferencedJars);
+    }
+
+    /** TASK-7: the SUSPECT-branch note explaining why an otherwise-inheritable root was not trusted. */
+    private static String suppressionNote(ValueRules.Suppression suppression) {
+        return "family keys present but no selecting value matches (selector " + suppression.selectorKeyPattern()
+                + " = " + suppression.valuesSeen() + ")";
     }
 
     private static String evidenceOf(CapabilityJoin.Edge edge) {
@@ -664,20 +698,31 @@ public final class Analyzer {
                 : "used because it provides capability " + edge.reason() + " required by " + edge.requiringGa();
     }
 
-    private ExtensionReport classifyPlainJar(ResolvedDependency d, Set<String> asmReferenced,
-            Map<String, PlainJarScan> plainJarScans) {
+    static ExtensionReport classifyPlainJar(ResolvedDependency d, Set<String> asmReferenced,
+            Map<String, PlainJarScan> plainJarScans, ValueRules.Match valueMatch) {
         String gaKey = ga(d);
         PlainJarScan scan = plainJarScans.get(gaKey);
         if (scan != null && scan.error() != null) {
             return new ExtensionReport(gaKey, false, Verdict.SUSPECT, false, Set.of(), List.of(), Set.of(), List.of(),
-                    false, List.of(), "bytecode scan failed: " + scan.error(), null, List.of());
+                    false, List.of(), "bytecode scan failed: " + scan.error(), null, null, List.of());
         }
         Set<String> contained = scan == null ? Set.of() : scan.containedClasses();
         boolean used = contained.stream().anyMatch(asmReferenced::contains);
-        Verdict verdict = used ? Verdict.USED_BYTECODE : Verdict.SUSPECT;
-        String note = used ? null : "plain jar: no reference found in compiled classes (bytecode signal only)";
-        return new ExtensionReport(gaKey, false, verdict, false, Set.of(), List.of(), Set.of(), List.of(), used,
-                List.of(), note, null, List.of());
+        if (used) {
+            return new ExtensionReport(gaKey, false, Verdict.USED_BYTECODE, false, Set.of(), List.of(), Set.of(),
+                    List.of(), true, List.of(), null, null, null, List.of());
+        }
+        // TASK-7: a plain jar (not a Quarkus extension, so no config-root/inheritance concept applies to
+        // it at all) can still be the target of a value rule -- the Stork static-list case.
+        if (valueMatch != null) {
+            String evidence = "selected by " + valueMatch.key() + "=" + valueMatch.value();
+            return new ExtensionReport(gaKey, false, Verdict.USED_CONFIG, false, Set.of(),
+                    List.of(valueMatch.key()), Set.of(ConfigRootSource.VALUE_RULE), List.of(), false, List.of(),
+                    null, null, evidence, List.of());
+        }
+        String note = "plain jar: no reference found in compiled classes (bytecode signal only)";
+        return new ExtensionReport(gaKey, false, Verdict.SUSPECT, false, Set.of(), List.of(), Set.of(), List.of(),
+                false, List.of(), note, null, null, List.of());
     }
 
     /**

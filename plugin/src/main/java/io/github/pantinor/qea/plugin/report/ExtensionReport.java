@@ -50,6 +50,11 @@ import java.util.Set;
  *                            reference, or {@code null} when no such attribution fired. When set, it is
  *                            the reason {@link #bytecodeReferenced} is {@code true} for an extension whose
  *                            own runtime artifact was not itself referenced.
+ * @param valueRuleEvidence   TASK-7: human-readable evidence ({@code "selected by <key>=<value>"}) when a
+ *                            {@link io.github.pantinor.qea.plugin.configroot.ValueRules} entry matched
+ *                            this dependency (extension OR plain jar), or {@code null} otherwise. Stronger
+ *                            than blanket {@link io.github.pantinor.qea.plugin.configroot.RootInheritance}
+ *                            evidence: when set, {@link #configSource} is {@code {value-rule}}.
  * @param sharedReferencedJars TASK-11: evidence hints for a {@link Verdict#SUSPECT} row only, never for
  *                            any other verdict -- always empty otherwise, mirroring the {@link
  *                            #capabilityEvidence}/{@link #configMatchedKeys} "empty list, not null"
@@ -72,6 +77,7 @@ public record ExtensionReport(
         List<String> capabilityEvidence,
         String note,
         String bytecodeViaTransitiveApi,
+        String valueRuleEvidence,
         List<SharedReferencedJar> sharedReferencedJars) {
 
     /**

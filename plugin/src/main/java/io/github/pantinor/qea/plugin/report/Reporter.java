@@ -65,6 +65,11 @@ public final class Reporter {
                 if (!r.configMatchedKeys().isEmpty()) {
                     sb.append("      config keys   : ").append(String.join(", ", r.configMatchedKeys())).append('\n');
                 }
+                // TASK-7: value-rule evidence is its own line, independent of (and can co-occur with,
+                // for a plain jar row that has no config-root concept at all) the config-roots/keys lines.
+                if (r.valueRuleEvidence() != null) {
+                    sb.append("      value rule    : ").append(r.valueRuleEvidence()).append('\n');
+                }
                 // Exactly one bytecode line, never both: bytecodeViaTransitiveApi is the more specific
                 // reason and takes precedence when present (per its contract, it is only ever set when
                 // this extension's own runtime artifact was NOT referenced -- see Analyzer's TASK-5

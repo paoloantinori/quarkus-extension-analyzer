@@ -31,7 +31,9 @@ public enum ConfigRootSource {
     /** {@code @ConfigMapping(prefix=)} / {@code @ConfigRoot} via Jandex. */
     ANNOTATIONS("annotations"),
     /** Root of a non-ubiquitous extension dependency, via {@link RootInheritance}. */
-    INHERITED("inherited");
+    INHERITED("inherited"),
+    /** TASK-7: a curated key=value activation rule, via {@link ValueRules}. */
+    VALUE_RULE("value-rule");
 
     private final String label;
 

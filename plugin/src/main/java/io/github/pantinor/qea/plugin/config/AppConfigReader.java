@@ -49,11 +49,18 @@ import java.util.TreeSet;
  * starting with {@code %} (e.g. {@code %dev:}) is treated as a profile section, mirroring the
  * properties file's {@code %profile.} convention. List values are not descended into; the list's own
  * dotted path is recorded as a key.
+ *
+ * <p>TASK-7: raw scalar values are also captured per bare (profile prefix stripped) key, merged across
+ * every profile a key appears under, feeding {@link io.github.pantinor.qea.plugin.configroot.ValueRules}
+ * (the config-root signal itself, {@link #allKeys()}, only ever needs key presence). Values are recorded
+ * verbatim, unresolved {@code ${...}} expressions included -- exactly like the key-only path above, this
+ * class never tries to resolve them.
  */
 public final class AppConfigReader {
 
     private final Map<String, Set<String>> keysByProfile = new LinkedHashMap<>();
     private final Set<String> allKeys = new TreeSet<>();
+    private final Map<String, Set<String>> valuesByKey = new LinkedHashMap<>();
 
     private AppConfigReader() {
     }
@@ -71,7 +78,7 @@ public final class AppConfigReader {
             props.load(in);
         }
         for (String key : props.stringPropertyNames()) {
-            cfg.acceptPropertiesKey(key);
+            cfg.acceptPropertiesKey(key, props.getProperty(key));
         }
         return cfg;
     }
@@ -100,7 +107,7 @@ public final class AppConfigReader {
         return cfg;
     }
 
-    private void acceptPropertiesKey(String key) {
+    private void acceptPropertiesKey(String key, String value) {
         // A key may carry a comma-separated profile list: "%dev,%test.quarkus.foo=bar".
         List<String> profiles = new ArrayList<>();
         String bare = key;
@@ -123,6 +130,9 @@ public final class AppConfigReader {
             keysByProfile.computeIfAbsent(profile, k -> new LinkedHashSet<>()).add(bare);
         }
         allKeys.add(bare);
+        if (value != null) {
+            valuesByKey.computeIfAbsent(bare, k -> new LinkedHashSet<>()).add(value);
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -141,6 +151,7 @@ public final class AppConfigReader {
         }
         keysByProfile.computeIfAbsent(profile, k -> new LinkedHashSet<>()).add(pathSoFar);
         allKeys.add(pathSoFar);
+        valuesByKey.computeIfAbsent(pathSoFar, k -> new LinkedHashSet<>()).add(String.valueOf(value));
     }
 
     /** Keys of every profile, profile prefix stripped. */
@@ -151,5 +162,15 @@ public final class AppConfigReader {
     /** Per-profile key sets, kept for profile surfacing in the report (M3). */
     public Map<String, Set<String>> keysByProfile() {
         return keysByProfile;
+    }
+
+    /**
+     * TASK-7: bare (profile prefix stripped) key -&gt; every raw scalar value it was set to, merged
+     * across every profile it appears under -- {@link io.github.pantinor.qea.plugin.configroot.ValueRules}
+     * needs "was this key ever set to this value in any profile", the same "any profile" scope {@link
+     * #allKeys()} already uses for key presence.
+     */
+    public Map<String, Set<String>> valuesByKey() {
+        return valuesByKey;
     }
 }
