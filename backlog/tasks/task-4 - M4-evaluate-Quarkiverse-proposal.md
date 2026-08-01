@@ -1,10 +1,10 @@
 ---
 id: TASK-4
 title: 'M4: evaluate Quarkiverse proposal'
-status: In Progress
+status: To Do
 assignee: []
 created_date: '2026-08-01 09:51'
-updated_date: '2026-08-01 17:06'
+updated_date: '2026-08-01 19:12'
 labels: []
 dependencies: []
 priority: low
@@ -26,7 +26,7 @@ Step 1 (unblocks the precondition): validate the analyzer on a second real Quark
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-Blocked by its own precondition: requires M2 validation on at least two real applications; only the registry bench exists so far. Unblock by validating on a second Quarkus app (candidate: any mid-size Quarkiverse member app), then evaluate the proposal.
+Step 1 DONE: second bench committed as docs/SECOND-BENCH.md (24c8aa1): precondition (two real applications) formally satisfied; version skew proven a non-issue. Step 2 (the actual Quarkiverse evaluation) should wait for TASK-9: proposing a tool with a known first-run adoption blocker would be a poor introduction. Sequence: TASK-9 fix -> re-run second bench repro from clean compile -> then evaluate the proposal.
 <!-- SECTION:NOTES:END -->
 
 ## Definition of Done

@@ -4,7 +4,7 @@ title: Per-driver db-kind value discrimination for shared config roots
 status: To Do
 assignee: []
 created_date: '2026-08-01 17:03'
-updated_date: '2026-08-01 17:21'
+updated_date: '2026-08-01 19:12'
 labels: []
 dependencies: []
 ordinal: 7000
@@ -21,3 +21,9 @@ Generalize beyond db-kind: value-based extension activation. Two confirmed cases
 - [ ] #1 Run /simplify on the changed code and apply the cleanups it surfaces
 - [ ] #2 Run /code-review at high effort on the final diff and resolve every finding
 <!-- DOD:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Third confirmed value-activation case from the second bench: io.smallrye.stork:stork-service-discovery-static-list (plain jar) selected by quarkus.stork.*.service-discovery.type=static. The value-rules design must cover plain-jar providers selected by config values, not only quarkus-* extensions.
+<!-- SECTION:NOTES:END -->
