@@ -113,6 +113,17 @@ public class AnalyzeMojo extends AbstractMojo {
     @Parameter(property = "qea.applicationConfig")
     private File applicationConfig;
 
+    /**
+     * TASK-5 bench diagnostics: logs (at Maven debug level, i.e. visible under {@code -X}) each
+     * extension's transitive-API BFS subtree, why each candidate jar was or wasn't attributed
+     * (exclusive vs. shared vs. also-directly-declared), and, per attributed candidate, whether the
+     * project's compiled classes actually reference it. Off by default: the trace is verbose (one block
+     * per declared extension in the whole resolved model, not just the directly-declared ones) and is
+     * meant for diagnosing a specific extension's classification, not routine runs.
+     */
+    @Parameter(property = "qea.debugAttribution", defaultValue = "false")
+    private boolean debugAttribution;
+
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
         if (skip) {
@@ -127,9 +138,10 @@ public class AnalyzeMojo extends AbstractMojo {
         AppConfigReader appConfig = readApplicationConfig();
 
         ExecutorService executor = Executors.newFixedThreadPool(Math.max(2, Runtime.getRuntime().availableProcessors()));
+        Analyzer analyzer = new Analyzer(executor, debugAttribution ? getLog()::debug : null);
         AnalysisReport report;
         try {
-            report = new Analyzer(executor).analyze(model, classesDirs, appConfig);
+            report = analyzer.analyze(model, classesDirs, appConfig);
         } catch (IOException e) {
             throw new MojoExecutionException("quarkus-extension-analyzer: analysis failed", e);
         } finally {

@@ -16,6 +16,8 @@
 package io.github.pantinor.qea.plugin;
 
 import io.github.pantinor.qea.plugin.configroot.RootInheritance;
+import io.quarkus.maven.dependency.ResolvedDependency;
+import io.quarkus.maven.dependency.ResolvedDependencyBuilder;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -27,9 +29,9 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Focused tests for two package-private {@link Analyzer} helpers, kept out of the full {@code analyze}
- * pipeline since that needs a real {@code ApplicationModel} (heavy to construct in a pure-JUnit test;
- * covered instead by the registry-bench validation run, see docs/M2-VALIDATION.md).
+ * Focused tests for several package-private {@link Analyzer} helpers, kept out of the full {@code
+ * analyze} pipeline since that needs a real {@code ApplicationModel} (heavy to construct in a pure-JUnit
+ * test; covered instead by the registry-bench validation run, see docs/M2-VALIDATION.md).
  *
  * <p>{@link Analyzer#containedClassesConcurrently}'s "one bad jar doesn't abort the others" property is
  * not re-tested here beyond {@link #scanPlainJarIsolatesUnreadableJarFailureInsteadOfThrowing}: once
@@ -96,5 +98,107 @@ class AnalyzerTest {
     @Test
     void scanPlainJarReturnsNullWhenThereIsNoJarToScan() {
         assertThat(Analyzer.scanPlainJar(null)).isNull();
+    }
+
+    /**
+     * TASK-5, plan item 4 case: an extension's exclusive transitive jar that the project's compiled
+     * classes reference (per {@code jandexReferenced}) is recorded as evidence -- this is the second half
+     * of "exclusive jar referenced -&gt; attributed used-bytecode" (the first half, whether a jar counts
+     * as exclusive at all, is {@link io.github.pantinor.qea.plugin.bytecode.TransitiveApiAttributionTest}).
+     */
+    @Test
+    void transitiveApiEvidenceByGaRecordsTheJarWhenItsContainedClassIsReferenced() {
+        Map<String, Set<String>> exclusiveJarsByExtension =
+                Map.of("io.quarkus:quarkus-kubernetes-client", Set.of("io.fabric8:kubernetes-client"));
+        Map<String, Analyzer.PlainJarScan> exclusiveJarScans = Map.of("io.fabric8:kubernetes-client",
+                Analyzer.PlainJarScan.ok(Set.of("io.fabric8.kubernetes.client.KubernetesClient")));
+        Set<String> jandexReferenced = Set.of("io.fabric8.kubernetes.client.KubernetesClient");
+
+        Map<String, String> evidence =
+                Analyzer.transitiveApiEvidenceByGa(exclusiveJarsByExtension, exclusiveJarScans, jandexReferenced);
+
+        assertThat(evidence).containsEntry("io.quarkus:quarkus-kubernetes-client", "io.fabric8:kubernetes-client");
+    }
+
+    /**
+     * TASK-5, plan item 4 case: an extension's exclusive transitive jar that the project's compiled
+     * classes do NOT reference contributes no evidence -- the extension's classification stays as it was
+     * from the other signals ("stays as-is").
+     */
+    @Test
+    void transitiveApiEvidenceByGaOmitsExtensionWhenExclusiveJarIsNotReferenced() {
+        Map<String, Set<String>> exclusiveJarsByExtension =
+                Map.of("io.quarkus:quarkus-kubernetes-client", Set.of("io.fabric8:kubernetes-client"));
+        Map<String, Analyzer.PlainJarScan> exclusiveJarScans = Map.of("io.fabric8:kubernetes-client",
+                Analyzer.PlainJarScan.ok(Set.of("io.fabric8.kubernetes.client.KubernetesClient")));
+        Set<String> jandexReferenced = Set.of("some.other.Type");
+
+        Map<String, String> evidence =
+                Analyzer.transitiveApiEvidenceByGa(exclusiveJarsByExtension, exclusiveJarScans, jandexReferenced);
+
+        assertThat(evidence).doesNotContainKey("io.quarkus:quarkus-kubernetes-client");
+    }
+
+    /**
+     * TASK-5 follow-up: an extension referenced BOTH directly (its own runtime artifact) AND via an
+     * exclusive transitive jar must end up {@code bytecodeReferenced=true} with {@code
+     * bytecodeViaTransitiveApi=null} -- not both signals surfaced, per {@link
+     * io.github.pantinor.qea.plugin.report.ExtensionReport#bytecodeViaTransitiveApi()}'s contract ("this
+     * extension's own jar was NOT referenced"). {@link Analyzer#transitiveApiCandidates} enforces this by
+     * filtering the extension out BEFORE {@link Analyzer#transitiveApiEvidenceByGa} ever sees it, even
+     * though the exclusive jar genuinely would have matched if it had been scanned.
+     */
+    @Test
+    void extensionWithBothDirectReferenceAndReferencedExclusiveJarKeepsOnlyItsOwnJarEvidence() {
+        String gaKey = "io.quarkus:quarkus-kubernetes-client";
+        Map<String, Set<String>> exclusiveJarsByExtension = Map.of(gaKey, Set.of("io.fabric8:kubernetes-client-api"));
+        // The extension's own runtime artifact was already found referenced by signal 2 (own-jar check).
+        Map<String, Boolean> bytecodeUsedByGa = Map.of(gaKey, true);
+        Map<String, Analyzer.PlainJarScan> exclusiveJarScans = Map.of("io.fabric8:kubernetes-client-api",
+                Analyzer.PlainJarScan.ok(Set.of("io.fabric8.kubernetes.client.KubernetesClient")));
+        Set<String> jandexReferenced = Set.of("io.fabric8.kubernetes.client.KubernetesClient");
+
+        Map<String, Set<String>> candidates = Analyzer.transitiveApiCandidates(exclusiveJarsByExtension,
+                bytecodeUsedByGa, null);
+        Map<String, String> evidence =
+                Analyzer.transitiveApiEvidenceByGa(candidates, exclusiveJarScans, jandexReferenced);
+
+        assertThat(candidates).doesNotContainKey(gaKey);
+        assertThat(evidence).doesNotContainKey(gaKey);
+        // bytecodeReferenced (fed by bytecodeUsedByGa in Analyzer#analyze) stays true throughout: the skip
+        // only suppresses the transitive-API evidence field, never the underlying own-jar signal.
+        assertThat(bytecodeUsedByGa.get(gaKey)).isTrue();
+    }
+
+    @Test
+    void transitiveApiCandidatesKeepsAnExtensionNotYetUsedViaItsOwnJar() {
+        String gaKey = "io.quarkus:quarkus-kubernetes-client";
+        Map<String, Set<String>> exclusiveJarsByExtension = Map.of(gaKey, Set.of("io.fabric8:kubernetes-client-api"));
+        Map<String, Boolean> bytecodeUsedByGa = Map.of(gaKey, false);
+
+        Map<String, Set<String>> candidates = Analyzer.transitiveApiCandidates(exclusiveJarsByExtension,
+                bytecodeUsedByGa, null);
+
+        assertThat(candidates).containsEntry(gaKey, Set.of("io.fabric8:kubernetes-client-api"));
+    }
+
+    /**
+     * TASK-5 follow-up: {@link Analyzer#ga} strips the classifier, so two resolved dependencies sharing a
+     * {@code groupId:artifactId} but differing by classifier (a jar and its {@code tests} classifier
+     * variant) can collide in {@code allDepsByGa}. The empty-classifier (primary) jar must always win,
+     * regardless of which one the underlying collection enumerates first -- verified both ways here.
+     */
+    @Test
+    void allDepsByGaPrefersThePrimaryJarOverAClassifiedDuplicateRegardlessOfEnumerationOrder() {
+        ResolvedDependency primary = ResolvedDependencyBuilder.newInstance()
+                .setGroupId("io.lib").setArtifactId("example").setVersion("1.0").build();
+        ResolvedDependency classified = ResolvedDependencyBuilder.newInstance()
+                .setGroupId("io.lib").setArtifactId("example").setClassifier("tests").setVersion("1.0").build();
+
+        Map<String, ResolvedDependency> primaryFirst = Analyzer.allDepsByGa(List.of(primary, classified), null);
+        Map<String, ResolvedDependency> classifiedFirst = Analyzer.allDepsByGa(List.of(classified, primary), null);
+
+        assertThat(primaryFirst.get("io.lib:example")).isSameAs(primary);
+        assertThat(classifiedFirst.get("io.lib:example")).isSameAs(primary);
     }
 }

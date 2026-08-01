@@ -61,9 +61,19 @@ a reference to any class contained in the extension's runtime artifact (or its
 non-Quarkus transitive API, e.g. `io.smallrye.*` for smallrye extensions)
 marks it used. Plain (non-extension) dependencies are delegated wholesale to
 `org.apache.maven.shared:maven-dependency-analyzer` so results stay comparable
-with the standard tooling. M2 implements the extension's own runtime artifact
-check only; walking the non-Quarkus transitive API is a deferred scope cut
-(tracked in the backlog).
+with the standard tooling. The non-Quarkus transitive API is walked too
+(TASK-5): a plain jar is credited to a directly-declared extension only when
+it is reachable, by BFS over `ResolvedDependency.getDirectDependencies()` from
+that extension's own runtime artifact, from that one declared extension alone
+(not from any other declared extension, which has its own signal) and is not
+itself directly declared by the project. The BFS traverses through extensions
+that are pulled in transitively but never themselves directly declared (their
+subtree is credited to the declared ancestor that reached them), and stops
+only at another DECLARED extension; a plain jar shared by two or more declared
+extensions, or one the project also declares directly, is never attributed:
+ambiguity must not manufacture a used verdict. A reference from project
+bytecode to a class in an attributed jar marks the owning extension
+used-bytecode, with the jar's `groupId:artifactId` recorded as evidence.
 
 ### Signal 3: capabilities
 

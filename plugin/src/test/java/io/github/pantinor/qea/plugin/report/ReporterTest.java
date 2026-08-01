@@ -56,6 +56,8 @@ class ReporterTest {
         assertThat(json).contains("\"ignoreRecommendations\"");
         assertThat(json).contains("\"reason\" : \"used via an application configuration key under this "
                 + "extension's own config root (quarkus.datasource.)\"");
+        // TASK-5: the transitive-API evidence field round-trips under its own (camelCase, not kebab) name.
+        assertThat(json).contains("\"bytecodeViaTransitiveApi\" : \"io.fabric8:kubernetes-client\"");
     }
 
     @Test
@@ -69,21 +71,50 @@ class ReporterTest {
         assertThat(text).contains("io.quarkus:quarkus-jdbc-h2 (inherited)");
         assertThat(text).contains("inherited from io.quarkus:quarkus-agroal: quarkus.datasource.");
         assertThat(text).doesNotContain("<-");
+        assertThat(text).contains("used-bytecode:");
+        assertThat(text).contains("io.quarkus:quarkus-kubernetes-client");
+        assertThat(text).contains("referenced via transitive API of io.fabric8:kubernetes-client");
+        // TASK-5 follow-up: exactly one bytecode line per row, "referenced from compiled classes" OR
+        // "referenced via transitive API of <ga>", never both -- two used-bytecode rows in sampleReport()
+        // (quarkus-jackson: own jar; quarkus-kubernetes-client: transitive only) means exactly two lines.
+        assertThat(text).contains("io.quarkus:quarkus-jackson");
+        assertThat(text).contains("referenced from compiled classes");
+        assertThat(countOccurrences(text, "bytecode      :")).isEqualTo(2);
+    }
+
+    private static int countOccurrences(String text, String needle) {
+        int count = 0;
+        int index = 0;
+        while ((index = text.indexOf(needle, index)) != -1) {
+            count++;
+            index += needle.length();
+        }
+        return count;
     }
 
     private static AnalysisReport sampleReport() {
         ExtensionReport used = new ExtensionReport("io.quarkus:quarkus-agroal", true, Verdict.USED_CONFIG, false,
                 Set.of("quarkus.datasource."), List.of("quarkus.datasource.db-kind"),
-                Set.of(ConfigRootSource.CONFIG_MODEL_JSON), List.of(), false, List.of(), null);
+                Set.of(ConfigRootSource.CONFIG_MODEL_JSON), List.of(), false, List.of(), null, null);
         ExtensionReport inherited = new ExtensionReport("io.quarkus:quarkus-jdbc-h2", true, Verdict.USED_CONFIG, true,
                 Set.of("quarkus.datasource."), List.of("quarkus.datasource.db-kind"),
                 Set.of(ConfigRootSource.INHERITED),
                 List.of(new RootInheritance.InheritedRoot("quarkus.datasource.", "io.quarkus:quarkus-agroal")),
-                false, List.of(), null);
+                false, List.of(), null, null);
         ExtensionReport suspect = new ExtensionReport("io.quarkus:quarkus-scheduler", true, Verdict.SUSPECT, false,
                 Set.of("quarkus.scheduler."), List.of(), Set.of(ConfigRootSource.EXTENSION_YAML), List.of(), false,
-                List.of(), "config roots known, but no application key falls under them");
-        List<ExtensionReport> rows = List.of(used, inherited, suspect);
+                List.of(), "config roots known, but no application key falls under them", null);
+        // TASK-5: an extension whose own jar was never referenced, but whose exclusive transitive
+        // non-Quarkus API jar was, becomes used-bytecode with bytecodeViaTransitiveApi carrying the jar's
+        // ga as evidence.
+        ExtensionReport viaTransitiveApi = new ExtensionReport("io.quarkus:quarkus-kubernetes-client", true,
+                Verdict.USED_BYTECODE, false, Set.of(), List.of(), Set.of(), List.of(), true, List.of(), null,
+                "io.fabric8:kubernetes-client");
+        // TASK-5 follow-up: an extension whose own runtime artifact IS referenced never carries
+        // bytecodeViaTransitiveApi (Analyzer skips transitive attribution for it entirely).
+        ExtensionReport ownJarReferenced = new ExtensionReport("io.quarkus:quarkus-jackson", true,
+                Verdict.USED_BYTECODE, false, Set.of(), List.of(), Set.of(), List.of(), true, List.of(), null, null);
+        List<ExtensionReport> rows = List.of(used, inherited, suspect, viaTransitiveApi, ownJarReferenced);
         return new AnalysisReport("io.apicurio:apicurio-registry-app:3.3.2-SNAPSHOT", "2026-08-01T00:00:00Z", rows,
                 IgnoreRecommendation.of(rows), AnalysisReport.Summary.of(rows));
     }

@@ -83,6 +83,38 @@ with dots escaped (verified against DepClean's source: `Pattern.matches`,
 case-insensitive). A fragment-write failure degrades to a warning and never
 suppresses the JSON report or the `failOnSuspect` outcome.
 
+## TASK-5 addendum: transitive-API bytecode signal (same bench)
+
+The signal-2 extension now attributes each declared extension's exclusive
+transitive plain jars (BFS from the declared extension's runtime artifact,
+traversing through nested non-declared extensions, stopping at other declared
+extensions; jars shared between declared extensions or directly declared by the
+project are never attributed). Bench outcome: **suspects drop from 7 to 6**.
+`quarkus-kubernetes-client` is now `used-bytecode` via
+`io.fabric8:kubernetes-client-api`, resolving the blind spot documented above.
+Three more extensions gained transitive evidence (`quarkus-agroal` via
+`agroal-api`, `quarkus-elasticsearch-java-client` via `elasticsearch-java`,
+`quarkus-opentelemetry` via `opentelemetry-sdk-metrics`); all four are
+transitive-only by construction (`bytecodeViaTransitiveApi` is only ever set
+when the extension's own jar is not directly referenced).
+
+The diagnostic trail is worth recording. The first implementation used every
+extension in the resolved model as an attribution root, so any jar under a
+nested transitive extension (`quarkus-kubernetes-client-internal`) counted as
+"shared" with its declared ancestor and could never be exclusive: the target
+case did not flip, and two plausible explanations (test-scope sharing,
+`MISSING_FROM_APPLICATION` pruning) were both refuted by a
+`-Dqea.debugAttribution=true` trace before the real mechanism was found. The
+fix (declared-extension roots, traversal through nested extensions) carries a
+dedicated regression test, and the debug flag stays in the plugin because one
+grep of its output settled what three rounds of static inference could not.
+
+Remaining suspects (6): `apicurio-registry-config-index`,
+`quarkus-resteasy-client-jackson`, `quarkus-resteasy-jackson`,
+`quarkus-scheduler`, `quarkus-smallrye-fault-tolerance`, `quarkus-smallrye-jwt`.
+These need human triage or future signals (DI-produced bean types remains the
+strongest candidate).
+
 ## Verified conclusions
 
 1. The three-signal design measurably improves on config-only classification

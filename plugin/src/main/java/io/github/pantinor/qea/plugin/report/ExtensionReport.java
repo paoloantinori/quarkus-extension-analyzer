@@ -44,6 +44,12 @@ import java.util.Set;
  * @param bytecodeReferenced  whether the project's own compiled classes reference this dependency
  * @param capabilityEvidence  human-readable capability/extension-dependency join edges, if any
  * @param note                free-form extra evidence (e.g. "no config metadata found")
+ * @param bytecodeViaTransitiveApi TASK-5: the {@code groupId:artifactId} of this extension's exclusive
+ *                            transitive plain jar (reachable from no other declared extension and not
+ *                            directly declared by the project) that the project's compiled classes
+ *                            reference, or {@code null} when no such attribution fired. When set, it is
+ *                            the reason {@link #bytecodeReferenced} is {@code true} for an extension whose
+ *                            own runtime artifact was not itself referenced.
  */
 public record ExtensionReport(
         String ga,
@@ -56,5 +62,6 @@ public record ExtensionReport(
         List<RootInheritance.InheritedRoot> inheritedRoots,
         boolean bytecodeReferenced,
         List<String> capabilityEvidence,
-        String note) {
+        String note,
+        String bytecodeViaTransitiveApi) {
 }

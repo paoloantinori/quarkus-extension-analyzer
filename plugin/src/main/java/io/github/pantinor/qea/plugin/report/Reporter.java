@@ -65,7 +65,14 @@ public final class Reporter {
                 if (!r.configMatchedKeys().isEmpty()) {
                     sb.append("      config keys   : ").append(String.join(", ", r.configMatchedKeys())).append('\n');
                 }
-                if (r.bytecodeReferenced()) {
+                // Exactly one bytecode line, never both: bytecodeViaTransitiveApi is the more specific
+                // reason and takes precedence when present (per its contract, it is only ever set when
+                // this extension's own runtime artifact was NOT referenced -- see Analyzer's TASK-5
+                // skip-scanning logic and ExtensionReport#bytecodeViaTransitiveApi's javadoc).
+                if (r.bytecodeViaTransitiveApi() != null) {
+                    sb.append("      bytecode      : referenced via transitive API of ")
+                            .append(r.bytecodeViaTransitiveApi()).append('\n');
+                } else if (r.bytecodeReferenced()) {
                     sb.append("      bytecode      : referenced from compiled classes\n");
                 }
                 if (!r.capabilityEvidence().isEmpty()) {
