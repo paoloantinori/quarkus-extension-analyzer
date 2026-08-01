@@ -1,10 +1,10 @@
 ---
 id: TASK-11
 title: Evidence hint for referenced shared jars (hibernate-validator case)
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-08-01 17:21'
-updated_date: '2026-08-01 20:35'
+updated_date: '2026-08-01 21:19'
 labels: []
 dependencies: []
 ordinal: 11000
@@ -22,8 +22,14 @@ Second bench: quarkus-hibernate-validator is a false suspect because jakarta.val
 Design (Fable): for suspect extensions only, compute the shared-referenced hint: jars reachable from the extension's subtree that are (a) reached by 2+ declared extensions (hence excluded from attribution) and (b) present in the project's referenced-type set. Reuse TransitiveApiAttribution's reachability data (expose the per-extension reachable set or the sharing map; do not recompute BFS). New nullable ExtensionReport field sharedReferencedJars: list of {ga, alsoReachableFrom: [gas]}, JSON + text rendering ('hint: project references shared jar X, also reachable from Y,Z'). Verdict stays suspect: the hint informs human triage, never upgrades. Tests: synthetic case (suspect with shared referenced jar -> hint present; used extension -> no hint computed; shared but unreferenced -> no hint). Bench expectation to verify by orchestrator: super-heroes rest-fights hibernate-validator row carries the jakarta.validation-api hint.
 <!-- SECTION:PLAN:END -->
 
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Delivered with ubiquity filter (orchestrator design refinement after the bench exposed boilerplate hints). Bench: verdicts unchanged 11/6/2/4, hints discriminating (hibernate-validator 7->1, two suspects honestly zero). The jakarta.validation-api hint case remains blocked by task-12 (Jandex declaredAnnotations gap). Commit 687c5b7.
+<!-- SECTION:NOTES:END -->
+
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Run /simplify on the changed code and apply the cleanups it surfaces
-- [ ] #2 Run /code-review at high effort on the final diff and resolve every finding
+- [x] #1 Run /simplify on the changed code and apply the cleanups it surfaces
+- [x] #2 Run /code-review at high effort on the final diff and resolve every finding
 <!-- DOD:END -->
