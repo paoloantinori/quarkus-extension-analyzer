@@ -1,0 +1,11 @@
+target/
+*.class
+*.jar
+.idea/
+*.iml
+.vscode/
+.factorypath
+.project
+.classpath
+.settings/
+temp.md
