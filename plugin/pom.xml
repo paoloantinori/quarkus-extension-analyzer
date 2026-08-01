@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>io.github.pantinor</groupId>
+  <artifactId>quarkus-extension-analyzer-maven-plugin</artifactId>
+  <version>1.0-SNAPSHOT</version>
+  <packaging>maven-plugin</packaging>
+
+  <name>quarkus-extension-analyzer :: M2 plugin</name>
+  <description>
+    Maven plugin classifying declared Quarkus extensions as used-bytecode / used-config /
+    used-capability / suspect, per docs/DESIGN.md. Production module; spike/ stays as the
+    throwaway M1 reference.
+  </description>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <maven.compiler.release>17</maven.compiler.release>
+    <!-- Version of the Quarkus bootstrap resolver libraries this plugin embeds; independent of the
+         Quarkus version of the project being analyzed (the ApplicationModel/resolver API is stable
+         across 3.x). Kept in sync with the M1 spike for continuity. -->
+    <quarkus.version>3.33.2.1</quarkus.version>
+    <maven.version>3.9.9</maven.version>
+    <plugin-tools.version>3.15.1</plugin-tools.version>
+    <resolver.version>1.9.22</resolver.version>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>io.quarkus</groupId>
+        <artifactId>quarkus-bom</artifactId>
+        <version>${quarkus.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <dependencies>
+    <!-- ApplicationModel resolution, fed by the Maven session's own RepositorySystem in the mojo. -->
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-bootstrap-maven-resolver</artifactId>
+      <version>${quarkus.version}</version>
+    </dependency>
+
+    <!-- Signal 1 source D (@ConfigMapping/@ConfigRoot) and signal 2's extension bytecode probe. -->
+    <dependency>
+      <groupId>io.smallrye</groupId>
+      <artifactId>jandex</artifactId>
+    </dependency>
+
+    <!-- Signal 1 source B (META-INF/quarkus-extension.yaml) and best-effort application.yaml reading. -->
+    <dependency>
+      <groupId>org.yaml</groupId>
+      <artifactId>snakeyaml</artifactId>
+    </dependency>
+
+    <!-- Signal 1 source C (quarkus-config-doc/quarkus-config-model.json) and JSON report output. -->
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+    </dependency>
+
+    <!-- Signal 2 for plain (non-extension) jars: standard bytecode-reference semantics, comparable to
+         maven-dependency-plugin:analyze. -->
+    <dependency>
+      <groupId>org.apache.maven.shared</groupId>
+      <artifactId>maven-dependency-analyzer</artifactId>
+      <version>1.17.0</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.maven</groupId>
+      <artifactId>maven-plugin-api</artifactId>
+      <version>${maven.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.maven</groupId>
+      <artifactId>maven-core</artifactId>
+      <version>${maven.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.maven.resolver</groupId>
+      <artifactId>maven-resolver-api</artifactId>
+      <version>${resolver.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <!-- org.eclipse.aether.impl.RemoteRepositoryManager: injected into the mojo (@Component) and fed
+         into MavenArtifactResolver.Builder, see AnalyzeMojo's field javadoc for why. -->
+    <dependency>
+      <groupId>org.apache.maven.resolver</groupId>
+      <artifactId>maven-resolver-impl</artifactId>
+      <version>${resolver.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <!-- org.apache.maven.settings.crypto.SettingsDecrypter: same reason. -->
+    <dependency>
+      <groupId>org.apache.maven</groupId>
+      <artifactId>maven-settings-builder</artifactId>
+      <version>${maven.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.maven.plugin-tools</groupId>
+      <artifactId>maven-plugin-annotations</artifactId>
+      <version>${plugin-tools.version}</version>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>5.10.5</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <version>3.27.7</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <!-- Pinned explicitly (rather than the Maven-core default-bound 3.13.1) because 3.13.1 is not
+           present in the local repository and this environment must not reach out for extra
+           artifacts beyond normal dependency resolution; 3.15.1 already is. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-plugin-plugin</artifactId>
+        <version>${plugin-tools.version}</version>
+      </plugin>
+      <!-- Pinned for the same reason: the Maven-core default-bound 3.2.5's JUnit-platform provider
+           is not present locally, 3.5.6's is. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>3.5.6</version>
+      </plugin>
+    </plugins>
+  </build>
+</project>

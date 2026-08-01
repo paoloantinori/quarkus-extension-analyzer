@@ -60,7 +60,9 @@ a reference to any class contained in the extension's runtime artifact (or its
 non-Quarkus transitive API, e.g. `io.smallrye.*` for smallrye extensions)
 marks it used. Plain (non-extension) dependencies are delegated wholesale to
 `org.apache.maven.shared:maven-dependency-analyzer` so results stay comparable
-with the standard tooling.
+with the standard tooling. M2 implements the extension's own runtime artifact
+check only; walking the non-Quarkus transitive API is a deferred scope cut
+(tracked in the backlog).
 
 ### Signal 3: capabilities
 
@@ -81,6 +83,7 @@ augmentation phase. If not, plan B is resolving the model through a forked
 - Generated ignore fragments: `<ignoredUnusedDeclaredDependencies>` for
   maven-dependency-plugin and `<ignoreDependencies>` regexes for DepClean, so
   adopters can keep their existing analyzer and only borrow the Quarkus brain.
+  (M3, not yet implemented.)
 
 ## Explicit non-goals
 

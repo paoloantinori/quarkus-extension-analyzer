@@ -2,8 +2,11 @@
 
 Dependency-usage analysis that understands Quarkus.
 
-**Status: design phase.** No code yet; the design below is ready to be spiked.
-See [docs/DESIGN.md](docs/DESIGN.md) for the full architecture.
+**Status:** M1 (spike) is done, with evidence in
+[docs/SPIKE-RESULTS.md](docs/SPIKE-RESULTS.md). M2 (the `analyze` mojo) is
+implemented in [`plugin/`](plugin/) and has been validated on the Apicurio
+Registry bench; see [docs/M2-VALIDATION.md](docs/M2-VALIDATION.md) for the
+numbers. See [docs/DESIGN.md](docs/DESIGN.md) for the full architecture.
 
 ## The problem
 
@@ -74,15 +77,35 @@ the natural long-term home is [Quarkiverse](https://github.com/quarkiverse).
 
 ## Roadmap
 
-- **M1, spike** (riskiest unknown first): given a built Quarkus app, enumerate
-  its extensions and their config roots via the bootstrap `ApplicationModel`,
-  and match them against parsed application config. Validate on a real
-  multi-extension app (Apicurio Registry's `app` module is the test bench:
-  ground truth is known for all ~25 of its extensions).
-- **M2, mojo**: `analyze` goal producing the three-signal report.
-- **M3, interop**: generate `ignoredUnusedDeclaredDependencies` /
-  DepClean ignore fragments; CI-friendly JSON output.
-- **M4, community**: evaluate a Quarkiverse proposal.
+- **M1, spike** (riskiest unknown first) -- done. Given a built Quarkus app,
+  enumerate its extensions and their config roots via the bootstrap
+  `ApplicationModel`, and match them against parsed application config.
+  Validated on a real multi-extension app (Apicurio Registry's `app` module
+  is the test bench: ground truth is known for all ~25 of its extensions).
+  Evidence: [docs/SPIKE-RESULTS.md](docs/SPIKE-RESULTS.md).
+- **M2, mojo** -- done. `analyze` goal producing the three-signal report,
+  implemented in [`plugin/`](plugin/) and validated on the same bench.
+  Numbers: [docs/M2-VALIDATION.md](docs/M2-VALIDATION.md).
+- **M3, interop** (open): generate `ignoredUnusedDeclaredDependencies` /
+  DepClean ignore fragments (CI-friendly JSON output already shipped in M2).
+- **M4, community** (open): evaluate a Quarkiverse proposal.
+
+## Usage
+
+```bash
+mvn io.github.pantinor:quarkus-extension-analyzer-maven-plugin:1.0-SNAPSHOT:analyze
+```
+
+Run from the Quarkus application module to analyze, after `mvn compile` (the
+bytecode signal needs `target/classes` to exist). Useful flags:
+
+- `-Dqea.reportFile=target/quarkus-extension-analysis.json` -- also write the JSON report
+- `-Dqea.failOnSuspect=true` -- fail the build if any directly-declared dependency is `suspect`
+- `-Dqea.applicationConfig=/path/to/application.yaml` -- override the auto-discovered config file
+- `-Dqea.skip=true` -- skip the goal
+
+See [docs/M2-VALIDATION.md](docs/M2-VALIDATION.md) for a real run against the
+Apicurio Registry bench.
 
 ## License
 
