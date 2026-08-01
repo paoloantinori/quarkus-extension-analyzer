@@ -256,3 +256,101 @@ gap in the same value-based-activation family as
   instead of `compile`) is a workaround for reproducing the bench, not a fix
   to the plugin itself. The ApplicationModel-resolution-requires-local-jar
   behavior is a real bug candidate for a future task.
+
+## Addendum (2026-08-01, later same night): value rules + shared-referenced-jar hints re-run
+
+TASK-7 (value-based activation rules) and TASK-11 (shared-referenced-jar
+hints) landed after the run above and were re-verified against this same
+bench (`rest-fights`, same reproduction steps: `mvn install -DskipTests`
+under JDK 25, then the `analyze` goal with
+`-Dqea.reportFile=/tmp/qea-superheroes-tonight.json -Dqea.ignoreFragments=true`).
+Full run log: `/tmp/qea-run-tonight.log`; JSON: `/tmp/qea-superheroes-tonight.json`.
+
+### Value rules flip the two predicted false suspects
+
+The original triage above (see the extension-level suspect table and the
+plain-jar suspect list) predicted both `quarkus-container-image-docker` and
+`stork-service-discovery-static-list` were value-activation gaps, not real
+suspects. The value-rules signal now confirms both by directly matching the
+config value, not just the key:
+
+```
+io.quarkus:quarkus-container-image-docker
+    config keys   : quarkus.container-image.builder
+    value rule    : selected by quarkus.container-image.builder=docker
+```
+
+```
+io.smallrye.stork:stork-service-discovery-static-list (plain jar)
+    config keys   : quarkus.stork.narration-service.service-discovery.type
+    value rule    : selected by quarkus.stork.narration-service.service-discovery.type=static
+```
+
+Recomputed verdict counts from `/tmp/qea-superheroes-tonight.json`
+(`quarkusExtension: true` rows only), cross-checked against the printed
+summary line:
+
+```
+extensions : used-bytecode = 6 | used-config = 12 | used-capability = 2 | suspect = 3 | total = 23
+plain jars : used-bytecode = 1 | used-config = 1 | used-capability = 0 | suspect = 11 | total = 13
+combined   : used-bytecode = 7 | used-config = 13 | used-capability = 2 | suspect = 14 | total = 36
+```
+
+Extension suspects: **4 -> 3** (`used-config` 11 -> 12), losing exactly
+`quarkus-container-image-docker`. Plain-jar suspects: 12 -> 11 (`used-config`
+0 -> 1), losing exactly `stork-service-discovery-static-list`. Both are the
+value-activation gaps the original triage predicted, and only those two rows
+moved; nothing else in the report changed. The three remaining extension
+suspects are `quarkus-hibernate-validator`, `quarkus-info`, and
+`quarkus-micrometer-opentelemetry` (confirmed via
+`Counter(r['verdict'] for r in ... if r['quarkusExtension'])` ->
+`{'used-config': 12, 'used-bytecode': 6, 'suspect': 3, 'used-capability': 2}`).
+
+### Shared-referenced-jar hints decorate the remaining suspects, still discriminating
+
+The three remaining suspects now carry `sharedReferencedJars` hints where the
+project's bytecode actually reaches a jar that is shared between declared
+extensions (so exclusivity still refuses attribution, but triage gets the
+signal):
+
+- `quarkus-hibernate-validator` carries **exactly one** hint, matching the
+  ubiquity-filtered discrimination TASK-11 targeted:
+
+  ```
+  hint          : project references shared jar jakarta.ws.rs:jakarta.ws.rs-api, also reachable from
+                  io.quarkus:quarkus-apicurio-registry-avro, io.quarkus:quarkus-micrometer-opentelemetry,
+                  io.quarkus:quarkus-opentelemetry, io.quarkus:quarkus-rest-client-jackson,
+                  io.quarkus:quarkus-rest-jackson
+  ```
+
+  The `jakarta.validation-api` hint this row's own TASK-11 story targeted
+  (8 DTO/service classes use `@NotNull` etc., see the extension-level suspect
+  table above) does **not** appear. Cross-referencing `backlog/tasks/task-12
+  - Bytecode-signal-misses-member-level-annotations-Jandex-declaredAnnotations.md`:
+  the bytecode signal reads `ClassInfo.declaredAnnotations()`, which Jandex
+  3.5.3 excludes member-level annotations from, so field-level constraints on
+  record components (`Fighters`, `FightRequest`) never enter the
+  jandex-referenced-types set. `jakarta.validation-api` is invisible to
+  the hint for the same reason it is invisible to signal 2 itself. Confirmed
+  directly from the JSON: `quarkus-hibernate-validator`'s
+  `sharedReferencedJars` array has exactly one entry
+  (`jakarta.ws.rs:jakarta.ws.rs-api`), no `jakarta.validation-api` entry.
+
+- `quarkus-micrometer-opentelemetry` carries 5 hints (guava, `grpc-api`,
+  `smallrye-reactive-messaging-api`, `jakarta.ws.rs-api`, `bson`), each named
+  with its full `alsoReachableFrom` list. The boilerplate jackson/cdi jars
+  the pre-ubiquity-filter design would have surfaced are absent, matching the
+  687c5b7 commit message's claim that the >50%-reachability threshold keeps
+  hints discriminating.
+- `quarkus-info` carries **zero** hints
+  (`sharedReferencedJars: []` in the JSON), an honest empty result, not a
+  missing feature: nothing in the project's bytecode references any jar
+  reachable from this extension's subtree, consistent with the extension-level
+  suspect table's "true suspect, confirmed by repo-wide search" verdict for
+  `quarkus-info` above.
+
+Net effect of both features together on this bench: the honest 4 extension
+suspects from the original run are down to 3, one value-activation plain-jar
+suspect is resolved, and the three remaining suspects each carry the evidence
+(or the honest absence of evidence) a human triager needs, without the
+verdict itself ever being upgraded past what exclusivity allows.
