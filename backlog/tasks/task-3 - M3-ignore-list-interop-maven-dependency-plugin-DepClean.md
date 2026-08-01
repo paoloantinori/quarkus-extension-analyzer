@@ -1,10 +1,10 @@
 ---
 id: TASK-3
 title: 'M3: ignore-list interop (maven-dependency-plugin + DepClean)'
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-08-01 09:51'
-updated_date: '2026-08-01 12:24'
+updated_date: '2026-08-01 12:50'
 labels: []
 dependencies: []
 ordinal: 3000
@@ -29,8 +29,14 @@ Design decisions (Fable):
 Execution delegated; Fable reviews the final diff.
 <!-- SECTION:PLAN:END -->
 
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Fragments + JSON recommendations delivered; DepClean regex semantics verified from source; bench exact (15 entries both formats); ordering/isolation hardened so fragment failures cannot suppress primary outputs. DoD: simplify (4 fixes + 1 recorded skip) and code-review high (2 verified findings fixed) completed. Commit: see git log.
+<!-- SECTION:NOTES:END -->
+
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Run /simplify on the changed code and apply the cleanups it surfaces
-- [ ] #2 Run /code-review at high effort on the final diff and resolve every finding
+- [x] #1 Run /simplify on the changed code and apply the cleanups it surfaces
+- [x] #2 Run /code-review at high effort on the final diff and resolve every finding
 <!-- DOD:END -->
