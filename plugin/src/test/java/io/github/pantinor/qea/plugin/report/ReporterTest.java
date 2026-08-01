@@ -58,6 +58,25 @@ class ReporterTest {
                 + "extension's own config root (quarkus.datasource.)\"");
         // TASK-5: the transitive-API evidence field round-trips under its own (camelCase, not kebab) name.
         assertThat(json).contains("\"bytecodeViaTransitiveApi\" : \"io.fabric8:kubernetes-client\"");
+        // TASK-10: extensions{}/plainJars{} split blocks round-trip alongside the combined summary block
+        // kept for backward compatibility. sampleReport() has 5 extension rows (2 used-config, 2
+        // used-bytecode, 1 suspect) and 1 plain-jar row (suspect).
+        assertThat(json).contains("\"extensions\" : {");
+        assertThat(json).contains("\"plainJars\" : {");
+        assertThat(json).contains("\"summary\" : {");
+    }
+
+    @Test
+    void summarySplitsExtensionsFromPlainJarsButKeepsCombinedTotal() {
+        AnalysisReport report = sampleReport();
+
+        assertThat(report.extensions())
+                .isEqualTo(new AnalysisReport.Summary(2, 2, 0, 1, 5));
+        assertThat(report.plainJars())
+                .isEqualTo(new AnalysisReport.Summary(0, 0, 0, 1, 1));
+        // Combined total is unaffected by the split: still every row (6), matching pre-TASK-10 behavior.
+        assertThat(report.summary())
+                .isEqualTo(new AnalysisReport.Summary(2, 2, 0, 2, 6));
     }
 
     @Test
@@ -80,6 +99,17 @@ class ReporterTest {
         assertThat(text).contains("io.quarkus:quarkus-jackson");
         assertThat(text).contains("referenced from compiled classes");
         assertThat(countOccurrences(text, "bytecode      :")).isEqualTo(2);
+        // TASK-10: the extension-level summary line must appear before the plain-jars line, which must
+        // appear before the combined line kept for compatibility.
+        int extensionsAt = text.indexOf("extensions : used-bytecode = 2 | used-config = 2 | used-capability = 0 "
+                + "| suspect = 1 | total = 5");
+        int plainJarsAt = text.indexOf("plain jars : used-bytecode = 0 | used-config = 0 | used-capability = 0 "
+                + "| suspect = 1 | total = 1");
+        int combinedAt = text.indexOf("combined   : used-bytecode = 2 | used-config = 2 | used-capability = 0 "
+                + "| suspect = 2 | total = 6");
+        assertThat(extensionsAt).isPositive();
+        assertThat(plainJarsAt).isGreaterThan(extensionsAt);
+        assertThat(combinedAt).isGreaterThan(plainJarsAt);
     }
 
     private static int countOccurrences(String text, String needle) {
@@ -114,8 +144,34 @@ class ReporterTest {
         // bytecodeViaTransitiveApi (Analyzer skips transitive attribution for it entirely).
         ExtensionReport ownJarReferenced = new ExtensionReport("io.quarkus:quarkus-jackson", true,
                 Verdict.USED_BYTECODE, false, Set.of(), List.of(), Set.of(), List.of(), true, List.of(), null, null);
-        List<ExtensionReport> rows = List.of(used, inherited, suspect, viaTransitiveApi, ownJarReferenced);
+        // TASK-10: a plain-jar (quarkusExtension = false) row, so extensions{}/plainJars{} split into
+        // distinct, non-trivial counts. classifyPlainJar only ever yields USED_BYTECODE or SUSPECT.
+        ExtensionReport plainJarSuspect = new ExtensionReport("io.grpc:grpc-services", false, Verdict.SUSPECT, false,
+                Set.of(), List.of(), Set.of(), List.of(), false, List.of(),
+                "no bytecode reference found in compiled classes", null);
+        List<ExtensionReport> rows = List.of(used, inherited, suspect, viaTransitiveApi, ownJarReferenced, plainJarSuspect);
+        List<ExtensionReport> extensionRows = List.of(used, inherited, suspect, viaTransitiveApi, ownJarReferenced);
+        List<ExtensionReport> plainJarRows = List.of(plainJarSuspect);
+        AnalysisReport.Summary extensions = AnalysisReport.Summary.of(extensionRows);
+        AnalysisReport.Summary plainJars = AnalysisReport.Summary.of(plainJarRows);
+        // Combined via Summary.combine(...), mirroring Analyzer.java's production code path, rather than
+        // an independent Summary.of(rows) call -- so this fixture exercises the same code combine() does.
         return new AnalysisReport("io.apicurio:apicurio-registry-app:3.3.2-SNAPSHOT", "2026-08-01T00:00:00Z", rows,
-                IgnoreRecommendation.of(rows), AnalysisReport.Summary.of(rows));
+                IgnoreRecommendation.of(rows), extensions, plainJars,
+                AnalysisReport.Summary.combine(extensions, plainJars));
+    }
+
+    @Test
+    void summaryCombineIsFieldWiseSumAndHandlesEmptySummaries() {
+        AnalysisReport.Summary a = new AnalysisReport.Summary(1, 2, 3, 4, 10);
+        AnalysisReport.Summary b = new AnalysisReport.Summary(5, 6, 7, 8, 26);
+
+        assertThat(AnalysisReport.Summary.combine(a, b))
+                .isEqualTo(new AnalysisReport.Summary(6, 8, 10, 12, 36));
+
+        AnalysisReport.Summary empty = AnalysisReport.Summary.of(List.of());
+        assertThat(empty).isEqualTo(new AnalysisReport.Summary(0, 0, 0, 0, 0));
+        assertThat(AnalysisReport.Summary.combine(a, empty)).isEqualTo(a);
+        assertThat(AnalysisReport.Summary.combine(empty, empty)).isEqualTo(empty);
     }
 }

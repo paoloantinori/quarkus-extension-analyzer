@@ -83,12 +83,21 @@ public final class Reporter {
                 }
             }
         }
-        AnalysisReport.Summary s = report.summary();
+        // TASK-10: extension-level counts first -- that is the question this tool exists to answer --
+        // then plain jars, then the combined total kept for backward compatibility. Reporting only the
+        // combined line here previously let plain-jar suspects inflate the extension-level suspect count
+        // (see docs/SECOND-BENCH.md).
         sb.append('\n').append("-".repeat(120)).append('\n');
-        sb.append(String.format(
-                "used-bytecode = %d | used-config = %d | used-capability = %d | suspect = %d | total = %d%n",
-                s.usedBytecode(), s.usedConfig(), s.usedCapability(), s.suspect(), s.total()));
+        appendSummaryLine(sb, "extensions", report.extensions());
+        appendSummaryLine(sb, "plain jars", report.plainJars());
+        appendSummaryLine(sb, "combined", report.summary());
         return sb.toString();
+    }
+
+    private static void appendSummaryLine(StringBuilder sb, String label, AnalysisReport.Summary s) {
+        sb.append(String.format(
+                "%-10s : used-bytecode = %d | used-config = %d | used-capability = %d | suspect = %d | total = %d%n",
+                label, s.usedBytecode(), s.usedConfig(), s.usedCapability(), s.suspect(), s.total()));
     }
 
     public static void writeJson(AnalysisReport report, Path target) throws IOException {

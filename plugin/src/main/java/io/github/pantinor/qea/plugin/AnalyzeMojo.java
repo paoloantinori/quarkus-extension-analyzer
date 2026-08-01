@@ -23,10 +23,14 @@ import io.github.pantinor.qea.plugin.report.Reporter;
 import io.github.pantinor.qea.plugin.report.Verdict;
 import io.quarkus.bootstrap.model.ApplicationModel;
 import io.quarkus.bootstrap.resolver.BootstrapAppModelResolver;
+import io.quarkus.bootstrap.resolver.maven.BootstrapMavenException;
 import io.quarkus.bootstrap.resolver.maven.MavenArtifactResolver;
+import io.quarkus.bootstrap.resolver.maven.workspace.LocalProject;
+import io.quarkus.bootstrap.resolver.maven.workspace.LocalWorkspace;
 import io.quarkus.maven.dependency.ArtifactCoords;
 
 import org.apache.maven.execution.MavenSession;
+import org.apache.maven.model.Model;
 import org.apache.maven.model.Resource;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
@@ -36,15 +40,22 @@ import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
 import org.apache.maven.plugins.annotations.ResolutionScope;
 import org.apache.maven.project.MavenProject;
+import org.apache.maven.repository.internal.MavenWorkspaceReader;
 import org.apache.maven.settings.crypto.SettingsDecrypter;
+import org.eclipse.aether.DefaultRepositorySystemSession;
 import org.eclipse.aether.RepositorySystem;
+import org.eclipse.aether.RepositorySystemSession;
+import org.eclipse.aether.artifact.Artifact;
 import org.eclipse.aether.impl.RemoteRepositoryManager;
+import org.eclipse.aether.repository.WorkspaceReader;
+import org.eclipse.aether.repository.WorkspaceRepository;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -192,23 +203,84 @@ public class AnalyzeMojo extends AbstractMojo {
      * Resolves the {@link ApplicationModel} for the current project, per plan item 2: the resolver is
      * fed by the Maven session's own {@link RepositorySystem}/repository session and the project's
      * remote repositories, instead of building a standalone resolver (the M1 spike's approach, kept
-     * available as {@code spike/} for reference).
+     * available as {@code spike/} for reference, where workspace discovery stays off since it targets a
+     * different, non-reactor use case).
+     *
+     * <p>{@code setCurrentProject} is fed an explicitly loaded {@link LocalProject} (workspace rooted at
+     * this project's own basedir, per {@link LocalProject#loadWorkspace(Path)}) rather than relying on
+     * {@code BootstrapMavenContextConfig}'s default {@code workspaceDiscovery} flag: that default falls
+     * back to discovering the current POM from the {@code basedir} system property or the JVM's working
+     * directory (see {@code BootstrapMavenContext#resolveCurrentPom()}), neither of which reliably points
+     * at this module when the mojo runs as part of a multi-module reactor build.
+     *
+     * <p>Loading the workspace alone is not enough to make the resolver use it, for two compounding
+     * reasons, both confirmed empirically (instrumented run against {@code /tmp/super-heroes/rest-heroes},
+     * a never-installed reactor module): first, {@code BootstrapMavenContext} only wires a {@code
+     * WorkspaceReader} into its {@code RepositorySystemSession} when it builds that session itself, which
+     * it never does here since a pre-built session (Maven's own, {@code session.getRepositorySession()})
+     * is supplied -- required so the mojo shares Maven's real settings/mirrors/credentials instead of a
+     * second, independently-built session. Second, and more surprising: Maven's own session already
+     * carries its own {@code WorkspaceReader} ({@code org.apache.maven.ReactorReader}) whenever the
+     * current module's POM chains up to a multi-module parent; that reader *can* hand back a raw {@code
+     * target/classes} directory for a not-yet-packaged module (see {@code ReactorReader.find}), but only
+     * when {@code compile} is one of the lifecycle phases bound in the *current* Maven session -- which it
+     * isn't here, since the analyze goal is invoked directly rather than bound after {@code compile}, so
+     * {@code ReactorReader} finds nothing for a module that was {@code compile}d in an earlier, separate
+     * {@code mvn} invocation.
+     *
+     * <p>The fix is to chain the two readers: {@link ChainedMavenWorkspaceReader} tries Maven's reader
+     * first (so an already-packaged or relinked/relocated reactor artifact -- e.g. a shaded jar, or one
+     * relinked by another plugin earlier in this same reactor build -- still resolves exactly as vanilla
+     * Maven would) and falls back to our {@code LocalWorkspace} only on a miss, which is exactly the
+     * compile-only-module gap above. Maven ships an equivalent chaining utility ({@code
+     * org.apache.maven.internal.aether.MavenChainedWorkspaceReader}), but it lives in maven-core's {@code
+     * internal} package, which is not exported to plugin classloader realms: using it directly fails at
+     * runtime with {@code NoClassDefFoundError}, confirmed empirically against the same repro. {@link
+     * ChainedMavenWorkspaceReader} reimplements the same chaining semantics (first-match {@code
+     * findArtifact}, unioned {@code findVersions}, a composite {@code WorkspaceRepository} key so cache
+     * entries never alias between the two readers, and {@code findModel} delegation via the public {@code
+     * org.apache.maven.repository.internal.MavenWorkspaceReader} interface -- proven loadable here since
+     * {@code ReactorReader} itself already implements it) using only classes already crossing the plugin
+     * realm boundary successfully elsewhere in this method.
      */
     private ApplicationModel resolveApplicationModel() throws MojoExecutionException {
+        LocalProject currentProject;
+        try {
+            currentProject = LocalProject.loadWorkspace(project.getBasedir().toPath());
+        } catch (BootstrapMavenException | RuntimeException e) {
+            // RuntimeException too: a malformed sibling POM elsewhere in the reactor surfaces as an
+            // unchecked UncheckedIOException/RuntimeException from the workspace loader's concurrent
+            // module-loading tasks, not as a BootstrapMavenException.
+            throw new MojoExecutionException("quarkus-extension-analyzer: failed to load the Maven workspace at "
+                    + project.getBasedir() + "; check that the POM (and its parent chain, if any) is valid, or, "
+                    + "for layouts the workspace loader cannot walk (e.g. no parent POM chain to the reactor "
+                    + "root), install this module into the local repository first (mvn install)", e);
+        }
+
+        RepositorySystemSession repoSession = session.getRepositorySession();
+        LocalWorkspace fallback = currentProject.getWorkspace();
+        if (fallback != null) {
+            WorkspaceReader reader = new ChainedMavenWorkspaceReader(repoSession.getWorkspaceReader(), fallback);
+            repoSession = new DefaultRepositorySystemSession(repoSession).setWorkspaceReader(reader);
+        }
+
         try {
             MavenArtifactResolver mvn = MavenArtifactResolver.builder()
                     .setRepositorySystem(repoSystem)
-                    .setRepositorySystemSession(session.getRepositorySession())
+                    .setRepositorySystemSession(repoSession)
                     .setRemoteRepositories(project.getRemoteProjectRepositories())
                     .setRemoteRepositoryManager(remoteRepositoryManager)
                     .setSettingsDecrypter(settingsDecrypter)
-                    .setWorkspaceDiscovery(false)
+                    .setCurrentProject(currentProject)
                     .build();
             BootstrapAppModelResolver resolver = new BootstrapAppModelResolver(mvn);
             return resolver.resolveModel(
                     ArtifactCoords.jar(project.getGroupId(), project.getArtifactId(), project.getVersion()));
         } catch (Exception e) {
-            throw new MojoExecutionException("quarkus-extension-analyzer: failed to resolve the ApplicationModel", e);
+            throw new MojoExecutionException("quarkus-extension-analyzer: failed to resolve the ApplicationModel "
+                    + "for " + project.getGroupId() + ":" + project.getArtifactId() + ":" + project.getVersion()
+                    + "; build the module first (mvn compile) or, for exotic layouts not resolvable from the "
+                    + "reactor workspace, install it into the local repository first (mvn install)", e);
         }
     }
 
@@ -263,5 +335,65 @@ public class AnalyzeMojo extends AbstractMojo {
             }
         }
         return null;
+    }
+
+    /**
+     * Chains {@code primary} (Maven's own {@code WorkspaceReader}, typically {@code
+     * org.apache.maven.ReactorReader}, may be {@code null}) ahead of {@code fallback} (the Quarkus {@code
+     * LocalWorkspace}, never {@code null}), reimplementing {@code
+     * org.eclipse.aether.util.repository.ChainedWorkspaceReader}'s semantics plus {@code
+     * org.apache.maven.repository.internal.MavenWorkspaceReader#findModel} delegation. See {@link
+     * #resolveApplicationModel()}'s javadoc for why this is hand-rolled instead of reusing Maven's own
+     * {@code MavenChainedWorkspaceReader} (an {@code internal}-package class not visible from a plugin
+     * realm at runtime).
+     */
+    private static final class ChainedMavenWorkspaceReader implements MavenWorkspaceReader {
+
+        private final WorkspaceReader primary;
+        private final LocalWorkspace fallback;
+        private final WorkspaceRepository repository;
+
+        private ChainedMavenWorkspaceReader(WorkspaceReader primary, LocalWorkspace fallback) {
+            this.primary = primary;
+            this.fallback = fallback;
+            // A composite key, sensitive to both readers' contents, so resolver-side caches (which key
+            // partly on getRepository()) never alias an entry resolved through one reader's contents with
+            // a request meant for the other's.
+            Object key = primary == null ? fallback.getRepository().getKey()
+                    : List.of(primary.getRepository().getKey(), fallback.getRepository().getKey());
+            this.repository = new WorkspaceRepository("reactor+quarkus-workspace", key);
+        }
+
+        @Override
+        public WorkspaceRepository getRepository() {
+            return repository;
+        }
+
+        @Override
+        public File findArtifact(Artifact artifact) {
+            File found = primary == null ? null : primary.findArtifact(artifact);
+            return found != null ? found : fallback.findArtifact(artifact);
+        }
+
+        @Override
+        public List<String> findVersions(Artifact artifact) {
+            if (primary == null) {
+                return fallback.findVersions(artifact);
+            }
+            LinkedHashSet<String> versions = new LinkedHashSet<>(primary.findVersions(artifact));
+            versions.addAll(fallback.findVersions(artifact));
+            return List.copyOf(versions);
+        }
+
+        @Override
+        public Model findModel(Artifact artifact) {
+            if (primary instanceof MavenWorkspaceReader mavenPrimary) {
+                Model model = mavenPrimary.findModel(artifact);
+                if (model != null) {
+                    return model;
+                }
+            }
+            return fallback.resolveEffectiveModel(artifact.getGroupId(), artifact.getArtifactId(), artifact.getVersion());
+        }
     }
 }

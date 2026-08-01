@@ -54,6 +54,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Orchestrates the three-signal classification described in docs/DESIGN.md over a resolved {@link
@@ -195,8 +196,17 @@ public final class Analyzer {
         rows.sort((a, b) -> a.ga().compareTo(b.ga()));
 
         List<IgnoreRecommendation> ignoreRecommendations = IgnoreRecommendation.of(rows);
+
+        // TASK-10: split the summary by ExtensionReport#quarkusExtension so the extension-level verdict
+        // counts (the question this tool exists to answer) are never conflated with plain-jar rows; see
+        // AnalysisReport's javadoc and docs/SECOND-BENCH.md for the triage that surfaced the conflation.
+        Map<Boolean, List<ExtensionReport>> byExtension = rows.stream()
+                .collect(Collectors.partitioningBy(ExtensionReport::quarkusExtension));
+        AnalysisReport.Summary extensions = AnalysisReport.Summary.of(byExtension.get(true));
+        AnalysisReport.Summary plainJars = AnalysisReport.Summary.of(byExtension.get(false));
+
         return new AnalysisReport(model.getAppArtifact().toCompactCoords(), Instant.now().toString(), rows,
-                ignoreRecommendations, AnalysisReport.Summary.of(rows));
+                ignoreRecommendations, extensions, plainJars, AnalysisReport.Summary.combine(extensions, plainJars));
     }
 
     private Map<String, ConfigRootProbe.Probe> probeConcurrently(List<ResolvedDependency> extensions,

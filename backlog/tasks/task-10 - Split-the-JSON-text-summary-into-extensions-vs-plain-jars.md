@@ -1,9 +1,10 @@
 ---
 id: TASK-10
 title: Split the JSON/text summary into extensions vs plain jars
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-08-01 17:21'
+updated_date: '2026-08-01 19:14'
 labels: []
 dependencies: []
 ordinal: 10000
