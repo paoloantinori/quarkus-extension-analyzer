@@ -4,6 +4,7 @@ title: Per-driver db-kind value discrimination for shared config roots
 status: To Do
 assignee: []
 created_date: '2026-08-01 17:03'
+updated_date: '2026-08-01 17:21'
 labels: []
 dependencies: []
 ordinal: 7000
@@ -12,7 +13,7 @@ ordinal: 7000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-Deferred from M1 (DESIGN.md 'known hard case'): all quarkus-jdbc-* drivers match quarkus.datasource.* by family; discriminating WHICH driver is used needs the db-kind value (including named datasources and env-var indirection). Design the small curated table approach sanctioned by DESIGN.md; on the registry bench all four drivers are legitimately kept, so validation needs an app where one driver is genuinely dead.
+Generalize beyond db-kind: value-based extension activation. Two confirmed cases: quarkus-jdbc-* selected by quarkus.datasource.db-kind values (M1 known hard case), and quarkus-container-image-* selected by quarkus.container-image.builder values (second bench: container-image-docker false suspect). Design a small curated value-rules table (config key, value pattern -> extension ga) sanctioned by DESIGN.md, applied as part of signal 1. Validation: super-heroes rest-fights (container-image case) + an app with a genuinely dead jdbc driver.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Definition of Done
