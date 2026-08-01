@@ -1,10 +1,10 @@
 ---
 id: TASK-2
 title: 'M2: analyze mojo with three-signal report'
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-08-01 09:51'
-updated_date: '2026-08-01 10:59'
+updated_date: '2026-08-01 12:18'
 labels: []
 dependencies: []
 ordinal: 2000
@@ -34,8 +34,14 @@ Design decisions locked by M1 evidence (docs/SPIKE-RESULTS.md):
 Execution delegated; Fable reviews the final diff.
 <!-- SECTION:PLAN:END -->
 
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Three-signal mojo delivered and validated on the registry bench: suspects 13 (M1 config-only) -> 7; JDBC drivers used-config via inheritance; 24 unit tests; commit 6ddf9ae. DoD: /simplify (15 fixes + 2 recorded skips), /code-review high (3 verified bugs + 5 contract items, all fixed). Runtime DI lesson recorded in AnalyzeMojo javadoc and M2-VALIDATION.md. Follow-ups: task-5 (transitive-API bytecode signal), M3 interop, plus a candidate fourth signal (DI-produced bean types) noted in M2-VALIDATION.
+<!-- SECTION:NOTES:END -->
+
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Run /simplify on the changed code and apply the cleanups it surfaces
-- [ ] #2 Run /code-review at high effort on the final diff and resolve every finding
+- [x] #1 Run /simplify on the changed code and apply the cleanups it surfaces
+- [x] #2 Run /code-review at high effort on the final diff and resolve every finding
 <!-- DOD:END -->
