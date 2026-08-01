@@ -30,7 +30,8 @@ mojo (analyze)
  ├── AppConfigReader          <- application.properties / yaml, all profiles
  ├── BytecodeUsage            <- Jandex over target/classes + test-classes,
  │     delegating plain jars to maven-dependency-analyzer
- └── Reporter                 <- text + JSON + ignore-list fragments
+ ├── Reporter                 <- text + JSON
+ └── IgnoreFragments          <- ignore-list XML fragments (maven-dependency-plugin, DepClean)
 ```
 
 ### Signal 1: config roots
@@ -83,7 +84,8 @@ augmentation phase. If not, plan B is resolving the model through a forked
 - Generated ignore fragments: `<ignoredUnusedDeclaredDependencies>` for
   maven-dependency-plugin and `<ignoreDependencies>` regexes for DepClean, so
   adopters can keep their existing analyzer and only borrow the Quarkus brain.
-  (M3, not yet implemented.)
+  (M3, implemented: opt-in `-Dqea.ignoreFragments=true` on the `analyze` goal;
+  covers `used-config`/`used-capability` extensions only.)
 
 ## Explicit non-goals
 

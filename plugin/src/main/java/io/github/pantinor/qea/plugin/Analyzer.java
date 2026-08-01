@@ -25,6 +25,7 @@ import io.github.pantinor.qea.plugin.configroot.RootInheritance;
 import io.github.pantinor.qea.plugin.model.ExtensionNode;
 import io.github.pantinor.qea.plugin.report.AnalysisReport;
 import io.github.pantinor.qea.plugin.report.ExtensionReport;
+import io.github.pantinor.qea.plugin.report.IgnoreRecommendation;
 import io.github.pantinor.qea.plugin.report.Verdict;
 import io.github.pantinor.qea.plugin.util.PathUtils;
 import io.quarkus.bootstrap.model.ApplicationModel;
@@ -146,8 +147,9 @@ public final class Analyzer {
         }
         rows.sort((a, b) -> a.ga().compareTo(b.ga()));
 
+        List<IgnoreRecommendation> ignoreRecommendations = IgnoreRecommendation.of(rows);
         return new AnalysisReport(model.getAppArtifact().toCompactCoords(), Instant.now().toString(), rows,
-                AnalysisReport.Summary.of(rows));
+                ignoreRecommendations, AnalysisReport.Summary.of(rows));
     }
 
     private Map<String, ConfigRootProbe.Probe> probeConcurrently(List<ResolvedDependency> extensions,

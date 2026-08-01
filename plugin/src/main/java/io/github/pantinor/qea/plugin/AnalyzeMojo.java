@@ -18,6 +18,7 @@ package io.github.pantinor.qea.plugin;
 import io.github.pantinor.qea.plugin.config.AppConfigReader;
 import io.github.pantinor.qea.plugin.report.AnalysisReport;
 import io.github.pantinor.qea.plugin.report.ExtensionReport;
+import io.github.pantinor.qea.plugin.report.IgnoreFragments;
 import io.github.pantinor.qea.plugin.report.Reporter;
 import io.github.pantinor.qea.plugin.report.Verdict;
 import io.quarkus.bootstrap.model.ApplicationModel;
@@ -97,6 +98,15 @@ public class AnalyzeMojo extends AbstractMojo {
     private boolean failOnSuspect;
 
     /**
+     * Opt-in (TASK-3): also writes maven-dependency-plugin/DepClean-compatible ignore-list XML
+     * fragments to the project build directory ({@link IgnoreFragments#MAVEN_DEPENDENCY_PLUGIN_FILE_NAME}
+     * and {@link IgnoreFragments#DEPCLEAN_FILE_NAME}), covering the {@code used-config}/{@code
+     * used-capability} extensions only.
+     */
+    @Parameter(property = "qea.ignoreFragments", defaultValue = "false")
+    private boolean ignoreFragments;
+
+    /**
      * {@code application.properties}/{@code .yaml}/{@code .yml} to read. Defaults to the first of
      * those found under one of the project's resource directories (or its output directory).
      */
@@ -126,9 +136,21 @@ public class AnalyzeMojo extends AbstractMojo {
             executor.shutdown();
         }
 
-        if (textReport) {
-            getLog().info("\n" + Reporter.toText(report));
+        // Opt-in, best-effort: a fragments failure must never suppress the JSON report or the
+        // failOnSuspect outcome below, so it is isolated the same way readApplicationConfig()
+        // degrades a bad application.yaml -- log a warning and continue.
+        if (ignoreFragments) {
+            Path buildDir = Paths.get(project.getBuild().getDirectory());
+            try {
+                List<Path> written = IgnoreFragments.writeFragments(report.ignoreRecommendations(), buildDir);
+                getLog().info("quarkus-extension-analyzer: ignore-list fragments written to " + written.get(0)
+                        + " and " + written.get(1));
+            } catch (IOException | RuntimeException e) {
+                getLog().warn("quarkus-extension-analyzer: failed to write ignore-list fragments to " + buildDir
+                        + " (" + e + "); continuing without them", e);
+            }
         }
+
         if (reportFile != null) {
             try {
                 Reporter.writeJson(report, reportFile.toPath());
@@ -136,6 +158,10 @@ public class AnalyzeMojo extends AbstractMojo {
             } catch (IOException e) {
                 throw new MojoExecutionException("quarkus-extension-analyzer: failed to write " + reportFile, e);
             }
+        }
+
+        if (textReport) {
+            getLog().info("\n" + Reporter.toText(report));
         }
 
         if (failOnSuspect) {

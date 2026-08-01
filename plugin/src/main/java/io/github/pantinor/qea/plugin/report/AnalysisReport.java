@@ -20,9 +20,14 @@ import java.util.List;
 /**
  * Top-level analysis result for one Maven project: every directly-declared dependency (extension or
  * plain jar) with its verdict and evidence trail, plus a summary count per verdict.
+ *
+ * @param ignoreRecommendations the {@code used-config}/{@code used-capability} subset of {@link
+ *                               #dependencies()}, pre-digested into ignore-list recommendations (see
+ *                               {@link IgnoreRecommendation#of}) so CI consumers can build their own
+ *                               ignore-list format without parsing the full report or any XML
  */
 public record AnalysisReport(String applicationArtifact, String generatedAt, List<ExtensionReport> dependencies,
-        Summary summary) {
+        List<IgnoreRecommendation> ignoreRecommendations, Summary summary) {
 
     public record Summary(int usedBytecode, int usedConfig, int usedCapability, int suspect, int total) {
 

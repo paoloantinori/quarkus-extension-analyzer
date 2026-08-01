@@ -50,6 +50,12 @@ class ReporterTest {
         assertThat(json).contains("\"config-model-json\"");
         assertThat(json).doesNotContain("CONFIG_MODEL_JSON");
         assertThat(json).contains("\"fromGa\" : \"io.quarkus:quarkus-agroal\"");
+        // ignoreRecommendations (TASK-3): the suspect-exclusion guarantee itself is covered by
+        // IgnoreRecommendationTest#excludesUsedBytecodeAndSuspectRows; this just checks the field
+        // round-trips into the JSON contract.
+        assertThat(json).contains("\"ignoreRecommendations\"");
+        assertThat(json).contains("\"reason\" : \"used via an application configuration key under this "
+                + "extension's own config root (quarkus.datasource.)\"");
     }
 
     @Test
@@ -79,6 +85,6 @@ class ReporterTest {
                 List.of(), "config roots known, but no application key falls under them");
         List<ExtensionReport> rows = List.of(used, inherited, suspect);
         return new AnalysisReport("io.apicurio:apicurio-registry-app:3.3.2-SNAPSHOT", "2026-08-01T00:00:00Z", rows,
-                AnalysisReport.Summary.of(rows));
+                IgnoreRecommendation.of(rows), AnalysisReport.Summary.of(rows));
     }
 }

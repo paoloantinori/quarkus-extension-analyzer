@@ -86,8 +86,10 @@ the natural long-term home is [Quarkiverse](https://github.com/quarkiverse).
 - **M2, mojo** -- done. `analyze` goal producing the three-signal report,
   implemented in [`plugin/`](plugin/) and validated on the same bench.
   Numbers: [docs/M2-VALIDATION.md](docs/M2-VALIDATION.md).
-- **M3, interop** (open): generate `ignoredUnusedDeclaredDependencies` /
-  DepClean ignore fragments (CI-friendly JSON output already shipped in M2).
+- **M3, interop** -- done. Opt-in `-Dqea.ignoreFragments=true` on the `analyze`
+  goal generates `ignoredUnusedDeclaredDependencies` / DepClean `ignoreDependencies`
+  fragments from the `used-config`/`used-capability` extensions; the JSON report's
+  `ignoreRecommendations` array carries the same data for CI consumers.
 - **M4, community** (open): evaluate a Quarkiverse proposal.
 
 ## Usage
@@ -102,6 +104,11 @@ bytecode signal needs `target/classes` to exist). Useful flags:
 - `-Dqea.reportFile=target/quarkus-extension-analysis.json` -- also write the JSON report
 - `-Dqea.failOnSuspect=true` -- fail the build if any directly-declared dependency is `suspect`
 - `-Dqea.applicationConfig=/path/to/application.yaml` -- override the auto-discovered config file
+- `-Dqea.ignoreFragments=true` -- also write `qea-mdp-ignores.xml` and `qea-depclean-ignores.xml`
+  to the build directory: ready-to-paste ignore-list fragments for maven-dependency-plugin's
+  `analyze` goal and for DepClean, covering the `used-config`/`used-capability` extensions
+  (the JSON report's `ignoreRecommendations` array carries the same data for CI consumers that
+  want to build their own format)
 - `-Dqea.skip=true` -- skip the goal
 
 See [docs/M2-VALIDATION.md](docs/M2-VALIDATION.md) for a real run against the

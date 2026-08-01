@@ -69,6 +69,20 @@ The remaining five need human triage, which is precisely the tool's purpose:
 each row carries the evidence trail of which signals were checked and found
 nothing.
 
+## M3 addendum: ignore-list interop (same bench, same day)
+
+With `-Dqea.ignoreFragments=true` the same run writes
+`app/target/qea-mdp-ignores.xml` and `app/target/qea-depclean-ignores.xml`,
+each containing exactly the 15 used-config + used-capability extensions (the
+7 suspects and the 2 used-bytecode rows are excluded by design: bytecode-based
+analyzers see the latter on their own, and recommending to ignore an unproven
+suspect would defeat the tool's purpose). The JSON report carries the same 15
+entries in `ignoreRecommendations` with per-entry reason sentences. DepClean
+entries are full-match regexes against `groupId:artifactId:version:scope`
+with dots escaped (verified against DepClean's source: `Pattern.matches`,
+case-insensitive). A fragment-write failure degrades to a warning and never
+suppresses the JSON report or the `failOnSuspect` outcome.
+
 ## Verified conclusions
 
 1. The three-signal design measurably improves on config-only classification
