@@ -76,6 +76,27 @@ public final class TransitiveApiAttribution {
     }
 
     /**
+     * TASK-11: the full result of {@link #attribute}, exposing not just the exclusive-jar attribution
+     * ({@link #exclusiveByExtension}) but the raw reachability data it was computed from, so a caller can
+     * build additional evidence signals -- e.g. {@code Analyzer}'s shared-referenced-jars hint for suspect
+     * rows -- without a second BFS pass over the same dependency graph.
+     *
+     * @param exclusiveByExtension  declared extension GA -&gt; GAs of its exclusive transitive plain jars
+     *                              (sorted, deterministic iteration order); extensions with no exclusive
+     *                              jars are absent from the map, not mapped to an empty set. This is the
+     *                              field the TASK-5 transitive-API bytecode signal itself consumes.
+     * @param reachableByExtension  declared extension GA -&gt; EVERY plain jar reachable from its subtree,
+     *                              before the exclusivity filter -- includes jars {@link
+     *                              #exclusiveByExtension} excludes for being shared or directly declared
+     * @param extensionsReachingJar plain jar GA -&gt; the declared extension GAs that reach it (sorted);
+     *                              size 1 for a jar exclusive to one extension, 2+ for a jar shared
+     *                              between extensions
+     */
+    public record Result(Map<String, Set<String>> exclusiveByExtension, Map<String, Set<String>> reachableByExtension,
+            Map<String, Set<String>> extensionsReachingJar) {
+    }
+
+    /**
      * @param declaredExtensions the project's directly-declared extensions only (one report row each);
      *                           these are both the BFS roots and the only possible "owners" an exclusive
      *                           jar can be attributed to
@@ -86,11 +107,9 @@ public final class TransitiveApiAttribution {
      *                           declared or not -- used only to recognize a nested extension node during
      *                           the BFS (traverse through it, but never attribute its own artifact); must
      *                           be a superset of {@code declaredExtensions}' GAs
-     * @return extension GA -&gt; the GAs of its exclusive transitive plain jars (sorted, deterministic
-     *         iteration order); extensions with no exclusive jars are absent from the map, not mapped to
-     *         an empty set
+     * @return see {@link Result}
      */
-    public static Map<String, Set<String>> attribute(Collection<ResolvedDependency> declaredExtensions,
+    public static Result attribute(Collection<ResolvedDependency> declaredExtensions,
             Map<String, ResolvedDependency> allDepsByGa, Set<String> allExtensionGas) {
         return attribute(declaredExtensions, allDepsByGa, allExtensionGas, null);
     }
@@ -106,7 +125,7 @@ public final class TransitiveApiAttribution {
      * not visible from any single extension's own data. This trace is what surfaced the declared-vs-nested
      * bug documented on the class: without it, "shared" told only half the story (shared with what).
      */
-    public static Map<String, Set<String>> attribute(Collection<ResolvedDependency> declaredExtensions,
+    public static Result attribute(Collection<ResolvedDependency> declaredExtensions,
             Map<String, ResolvedDependency> allDepsByGa, Set<String> allExtensionGas, Consumer<String> debugLog) {
         Set<String> declaredExtensionGas = new HashSet<>();
         for (ResolvedDependency extension : declaredExtensions) {
@@ -160,7 +179,19 @@ public final class TransitiveApiAttribution {
                 }
             }
         }
-        return exclusiveByExtension;
+
+        // TASK-11: sort both raw-reachability maps for deterministic downstream iteration (the shared-
+        // referenced-jars hint's "alsoReachableFrom" list must not depend on HashSet/LinkedHashSet
+        // iteration order), mirroring exclusiveByExtension's own TreeSet already above.
+        Map<String, Set<String>> reachableByExtensionSorted = new LinkedHashMap<>();
+        for (Map.Entry<String, Set<String>> entry : reachableByExtension.entrySet()) {
+            reachableByExtensionSorted.put(entry.getKey(), new TreeSet<>(entry.getValue()));
+        }
+        Map<String, Set<String>> extensionsReachingSorted = new LinkedHashMap<>();
+        for (Map.Entry<String, Set<String>> entry : extensionsReaching.entrySet()) {
+            extensionsReachingSorted.put(entry.getKey(), new TreeSet<>(entry.getValue()));
+        }
+        return new Result(exclusiveByExtension, reachableByExtensionSorted, extensionsReachingSorted);
     }
 
     /**

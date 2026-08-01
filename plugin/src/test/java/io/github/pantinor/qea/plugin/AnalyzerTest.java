@@ -15,7 +15,10 @@
  */
 package io.github.pantinor.qea.plugin;
 
+import io.github.pantinor.qea.plugin.configroot.ConfigRootProbe;
 import io.github.pantinor.qea.plugin.configroot.RootInheritance;
+import io.github.pantinor.qea.plugin.report.ExtensionReport;
+import io.github.pantinor.qea.plugin.report.Verdict;
 import io.quarkus.maven.dependency.ResolvedDependency;
 import io.quarkus.maven.dependency.ResolvedDependencyBuilder;
 import org.junit.jupiter.api.Test;
@@ -200,5 +203,179 @@ class AnalyzerTest {
 
         assertThat(primaryFirst.get("io.lib:example")).isSameAs(primary);
         assertThat(classifiedFirst.get("io.lib:example")).isSameAs(primary);
+    }
+
+    /**
+     * TASK-11 (hibernate-validator/jakarta.validation-api bench case, mirror of the kubernetes-client
+     * fix): a jar reached by only one extension's subtree is exclusive, not a shared-referenced-jars hint
+     * candidate at all -- {@link Analyzer#sharedCandidateJars} must filter it out just as {@link
+     * io.github.pantinor.qea.plugin.bytecode.TransitiveApiAttribution} keeps it out of {@code
+     * exclusiveByExtension}'s complement. {@code totalDeclaredExtensions} is 10 here, well above the 2
+     * owners {@code jakarta.validation-api} has, so this case is unaffected by the ubiquity cutoff (that
+     * is {@link #sharedCandidateJarsExcludesAJarReachedByAMajorityOfDeclaredExtensionsAsUbiquitousNoise}).
+     */
+    @Test
+    void sharedCandidateJarsKeepsOnlyJarsReachedByTwoOrMoreDeclaredExtensions() {
+        Map<String, Set<String>> reachableByExtension = Map.of(
+                "io.quarkus:quarkus-hibernate-validator", Set.of("jakarta.validation:jakarta.validation-api"),
+                "io.quarkus:quarkus-apicurio-registry-avro", Set.of("jakarta.validation:jakarta.validation-api"),
+                "io.quarkus:quarkus-agroal", Set.of("io.lib:agroal-api"));
+        Map<String, Set<String>> extensionsReachingJar = Map.of(
+                "jakarta.validation:jakarta.validation-api",
+                Set.of("io.quarkus:quarkus-hibernate-validator", "io.quarkus:quarkus-apicurio-registry-avro"),
+                "io.lib:agroal-api", Set.of("io.quarkus:quarkus-agroal"));
+
+        Map<String, Set<String>> result =
+                Analyzer.sharedCandidateJars(reachableByExtension, extensionsReachingJar, 10);
+
+        assertThat(result.get("io.quarkus:quarkus-hibernate-validator"))
+                .containsExactly("jakarta.validation:jakarta.validation-api");
+        assertThat(result.get("io.quarkus:quarkus-apicurio-registry-avro"))
+                .containsExactly("jakarta.validation:jakarta.validation-api");
+        assertThat(result).doesNotContainKey("io.quarkus:quarkus-agroal");
+    }
+
+    /**
+     * TASK-11 bench follow-up: the first cut of this signal put {@code jackson-databind}/{@code
+     * cdi-api}/{@code smallrye-config-core}-style ubiquitous jars on nearly every suspect row in the
+     * rest-fights bench, which discriminates nothing and is noise, not a hint. A jar reached by MORE THAN
+     * half of the declared extensions (the same {@link RootInheritance#UBIQUITY_THRESHOLD} cutoff {@link
+     * RootInheritance#inherit} already applies) must never be a candidate, even though it is still,
+     * technically, "shared" by the plain size-&gt;=2 rule.
+     */
+    @Test
+    void sharedCandidateJarsExcludesAJarReachedByAMajorityOfDeclaredExtensionsAsUbiquitousNoise() {
+        Map<String, Set<String>> reachableByExtension = Map.of(
+                "io.quarkus:quarkus-hibernate-validator", Set.of("com.fasterxml.jackson.core:jackson-databind"));
+        // 6 declared extensions total, 4 of them (> 50%) reach this jar: ubiquitous, must be excluded.
+        Map<String, Set<String>> extensionsReachingJar = Map.of("com.fasterxml.jackson.core:jackson-databind",
+                Set.of("io.quarkus:quarkus-hibernate-validator", "io.quarkus:quarkus-grpc",
+                        "io.quarkus:quarkus-info", "io.quarkus:quarkus-kubernetes"));
+
+        Map<String, Set<String>> result = Analyzer.sharedCandidateJars(reachableByExtension, extensionsReachingJar, 6);
+
+        assertThat(result).doesNotContainKey("io.quarkus:quarkus-hibernate-validator");
+    }
+
+    /**
+     * TASK-11 bench follow-up, full-chain version of the case above: an ubiquitous jar produces no hint
+     * EVEN WHEN the project's compiled classes do reference it -- {@link Analyzer#sharedCandidateJars}
+     * excludes it before {@link Analyzer#sharedReferencedJarsHint} ever sees it as a candidate, so
+     * referencedness cannot resurrect it.
+     */
+    @Test
+    void sharedReferencedJarsHintNeverFiresForAnUbiquitousJarEvenWhenReferenced() {
+        Map<String, Set<String>> reachableByExtension = Map.of(
+                "io.quarkus:quarkus-hibernate-validator", Set.of("com.fasterxml.jackson.core:jackson-databind"));
+        Map<String, Set<String>> extensionsReachingJar = Map.of("com.fasterxml.jackson.core:jackson-databind",
+                Set.of("io.quarkus:quarkus-hibernate-validator", "io.quarkus:quarkus-grpc",
+                        "io.quarkus:quarkus-info", "io.quarkus:quarkus-kubernetes"));
+        Set<String> referencedJarGas = Set.of("com.fasterxml.jackson.core:jackson-databind");
+
+        Map<String, Set<String>> candidates = Analyzer.sharedCandidateJars(reachableByExtension, extensionsReachingJar, 6);
+        Map<String, List<ExtensionReport.SharedReferencedJar>> hints =
+                Analyzer.sharedReferencedJarsHint(candidates, extensionsReachingJar, referencedJarGas);
+
+        assertThat(hints).doesNotContainKey("io.quarkus:quarkus-hibernate-validator");
+    }
+
+    /**
+     * TASK-11, plan item "(b) present in the project's referenced-type set": a scanned jar counts as
+     * referenced only when its contained classes actually intersect {@code jandexReferenced}; a jar whose
+     * scan failed is conservatively treated as not referenced, never guessed either way.
+     */
+    @Test
+    void referencedJarGasKeepsOnlyScannedJarsWhoseContainedClassIsReferenced() {
+        Map<String, Analyzer.PlainJarScan> scans = Map.of(
+                "jakarta.validation:jakarta.validation-api",
+                Analyzer.PlainJarScan.ok(Set.of("jakarta.validation.constraints.NotNull")),
+                "io.lib:not-referenced", Analyzer.PlainJarScan.ok(Set.of("io.lib.Unused")),
+                "io.lib:scan-failed", Analyzer.PlainJarScan.failed("IOException: corrupt"));
+        Set<String> jandexReferenced = Set.of("jakarta.validation.constraints.NotNull");
+
+        Set<String> result = Analyzer.referencedJarGas(scans, jandexReferenced);
+
+        assertThat(result).containsExactly("jakarta.validation:jakarta.validation-api");
+    }
+
+    /**
+     * TASK-11, plan case 1 ("suspect with shared referenced jar -&gt; hint present"): a shared candidate
+     * jar that IS referenced produces a hint naming the OTHER declared extension(s) that also reach it
+     * (never itself).
+     */
+    @Test
+    void sharedReferencedJarsHintProducesAHintForAReferencedSharedJarNamingTheOtherOwners() {
+        Map<String, Set<String>> sharedCandidateJarsByExtension = Map.of(
+                "io.quarkus:quarkus-hibernate-validator", Set.of("jakarta.validation:jakarta.validation-api"));
+        Map<String, Set<String>> extensionsReachingJar = Map.of("jakarta.validation:jakarta.validation-api",
+                Set.of("io.quarkus:quarkus-hibernate-validator", "io.quarkus:quarkus-apicurio-registry-avro"));
+        Set<String> referencedJarGas = Set.of("jakarta.validation:jakarta.validation-api");
+
+        Map<String, List<ExtensionReport.SharedReferencedJar>> hints = Analyzer.sharedReferencedJarsHint(
+                sharedCandidateJarsByExtension, extensionsReachingJar, referencedJarGas);
+
+        assertThat(hints.get("io.quarkus:quarkus-hibernate-validator")).containsExactly(
+                new ExtensionReport.SharedReferencedJar("jakarta.validation:jakarta.validation-api",
+                        List.of("io.quarkus:quarkus-apicurio-registry-avro")));
+    }
+
+    /**
+     * TASK-11, plan case 3 ("shared but unreferenced -&gt; no hint"): a shared candidate jar the project's
+     * bytecode does NOT reference contributes no hint at all -- the extension is absent from the result,
+     * not mapped to an empty list (same convention as {@link Analyzer#transitiveApiEvidenceByGa}).
+     */
+    @Test
+    void sharedReferencedJarsHintOmitsAnExtensionWhoseSharedJarIsNotReferenced() {
+        Map<String, Set<String>> sharedCandidateJarsByExtension = Map.of(
+                "io.quarkus:quarkus-hibernate-validator", Set.of("jakarta.validation:jakarta.validation-api"));
+        Map<String, Set<String>> extensionsReachingJar = Map.of("jakarta.validation:jakarta.validation-api",
+                Set.of("io.quarkus:quarkus-hibernate-validator", "io.quarkus:quarkus-apicurio-registry-avro"));
+        Set<String> referencedJarGas = Set.of();
+
+        Map<String, List<ExtensionReport.SharedReferencedJar>> hints = Analyzer.sharedReferencedJarsHint(
+                sharedCandidateJarsByExtension, extensionsReachingJar, referencedJarGas);
+
+        assertThat(hints).doesNotContainKey("io.quarkus:quarkus-hibernate-validator");
+    }
+
+    /**
+     * TASK-11, plan case 1 (integration half): {@link Analyzer#classifyExtension} attaches a precomputed
+     * hint to the row it produces when, and only when, the row lands on one of the two SUSPECT-producing
+     * branches.
+     */
+    @Test
+    void classifyExtensionAttachesTheSharedReferencedJarsHintOnASuspectRow() {
+        ResolvedDependency dep = ResolvedDependencyBuilder.newInstance().setGroupId("io.quarkus")
+                .setArtifactId("quarkus-hibernate-validator").setVersion("1.0").setRuntimeExtensionArtifact()
+                .setDirect(true).build();
+        List<ExtensionReport.SharedReferencedJar> hint = List.of(new ExtensionReport.SharedReferencedJar(
+                "jakarta.validation:jakarta.validation-api", List.of("io.quarkus:quarkus-apicurio-registry-avro")));
+
+        ExtensionReport row = Analyzer.classifyExtension(dep, new ConfigRootProbe.Probe(), Map.of(), Map.of(),
+                new RootInheritance.Result(Map.of(), Set.of()), false, Map.of(), null, hint);
+
+        assertThat(row.verdict()).isEqualTo(Verdict.SUSPECT);
+        assertThat(row.sharedReferencedJars()).isEqualTo(hint);
+    }
+
+    /**
+     * TASK-11, plan case 2 ("used extension -&gt; no hint computed"): conservative semantics are
+     * non-negotiable, so even when a hint WAS computed for this extension (passed in here exactly as case
+     * 1 does), {@link Analyzer#classifyExtension} must never attach it to a non-SUSPECT row -- the hint
+     * must never look like it changed, or contributed to, the verdict.
+     */
+    @Test
+    void classifyExtensionNeverAttachesTheHintWhenTheExtensionIsAlreadyUsed() {
+        ResolvedDependency dep = ResolvedDependencyBuilder.newInstance().setGroupId("io.quarkus")
+                .setArtifactId("quarkus-hibernate-validator").setVersion("1.0").setRuntimeExtensionArtifact()
+                .setDirect(true).build();
+        List<ExtensionReport.SharedReferencedJar> hint = List.of(new ExtensionReport.SharedReferencedJar(
+                "jakarta.validation:jakarta.validation-api", List.of("io.quarkus:quarkus-apicurio-registry-avro")));
+
+        ExtensionReport row = Analyzer.classifyExtension(dep, new ConfigRootProbe.Probe(), Map.of(), Map.of(),
+                new RootInheritance.Result(Map.of(), Set.of()), true, Map.of(), null, hint);
+
+        assertThat(row.verdict()).isEqualTo(Verdict.USED_BYTECODE);
+        assertThat(row.sharedReferencedJars()).isEmpty();
     }
 }

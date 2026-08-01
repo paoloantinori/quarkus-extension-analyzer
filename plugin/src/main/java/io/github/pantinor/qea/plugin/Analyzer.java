@@ -144,17 +144,37 @@ public final class Analyzer {
         // attribution entirely -- its exclusive candidates are not even scanned -- so that
         // bytecodeViaTransitiveApi's contract ("this extension's own jar was NOT referenced") is
         // structurally true, not just documented.
-        Map<String, Set<String>> exclusiveJarsByExtension = TransitiveApiAttribution.attribute(declaredExtensions,
+        TransitiveApiAttribution.Result attribution = TransitiveApiAttribution.attribute(declaredExtensions,
                 allDepsByGa, knownExtensionGas, debugAttributionLog);
+        Map<String, Set<String>> exclusiveJarsByExtension = attribution.exclusiveByExtension();
         Map<String, Set<String>> transitiveApiCandidates =
                 transitiveApiCandidates(exclusiveJarsByExtension, bytecodeUsedByGa, debugAttributionLog);
         Map<String, PlainJarScan> exclusiveJarScans =
-                containedClassesConcurrently(exclusiveJarDependencies(transitiveApiCandidates, allDepsByGa));
+                containedClassesConcurrently(resolvedJarDependencies(transitiveApiCandidates, allDepsByGa));
         Map<String, String> transitiveApiEvidenceByGa = transitiveApiEvidenceByGa(transitiveApiCandidates,
                 exclusiveJarScans, jandexReferenced, debugAttributionLog);
         for (String gaKey : transitiveApiEvidenceByGa.keySet()) {
             bytecodeUsedByGa.put(gaKey, true);
         }
+
+        // --- signal 2c (TASK-11): shared-referenced-jars evidence hint, suspect rows only -------------
+        // Mirror case of the TASK-5 kubernetes-client fix: a jar reachable from 2+ declared extensions is
+        // excluded from exclusiveJarsByExtension (attributing it to either would be a guess), but when
+        // the project's own compiled classes DO reference it, that is still useful evidence for a human
+        // triaging a suspect row -- it must never change the verdict, only decorate it (enforced in
+        // classifyExtension, which only attaches this map's entries on its two SUSPECT-producing
+        // branches). Reuses attribution.reachableByExtension()/extensionsReachingJar(), the raw BFS data
+        // TransitiveApiAttribution already computed; no second traversal. Ubiquitous jars (bench
+        // follow-up: reached by most of the project's declared extensions, e.g. jackson-databind/
+        // cdi-api/smallrye-config-core) are excluded inside sharedCandidateJars -- they discriminate
+        // nothing and would be noise on every suspect row, not a hint.
+        Map<String, Set<String>> sharedCandidateJarsByExtension = sharedCandidateJars(attribution.reachableByExtension(),
+                attribution.extensionsReachingJar(), declaredExtensions.size());
+        Map<String, PlainJarScan> sharedJarScans =
+                containedClassesConcurrently(resolvedJarDependencies(sharedCandidateJarsByExtension, allDepsByGa));
+        Set<String> referencedSharedJarGas = referencedJarGas(sharedJarScans, jandexReferenced);
+        Map<String, List<ExtensionReport.SharedReferencedJar>> sharedReferencedJarsHintByGa = sharedReferencedJarsHint(
+                sharedCandidateJarsByExtension, attribution.extensionsReachingJar(), referencedSharedJarGas);
 
         // --- signal 3: capabilities + hard extension dependencies, seeded by signals 1 and 2 ------
         Map<String, ExtensionNode> nodes = buildExtensionNodes(model, allExtensions, directExtDeps);
@@ -188,7 +208,8 @@ public final class Analyzer {
             if (d.isRuntimeExtensionArtifact()) {
                 rows.add(classifyExtension(d, probes.get(gaKey), keysWonByOwner, inheritedKeysByGa, inheritance,
                         bytecodeUsedByGa.getOrDefault(gaKey, false), capabilityNewlyUsed,
-                        transitiveApiEvidenceByGa.get(gaKey)));
+                        transitiveApiEvidenceByGa.get(gaKey),
+                        sharedReferencedJarsHintByGa.getOrDefault(gaKey, List.of())));
             } else {
                 rows.add(classifyPlainJar(d, asmReferenced, plainJarScans));
             }
@@ -479,10 +500,102 @@ public final class Analyzer {
         return result;
     }
 
-    private ExtensionReport classifyExtension(ResolvedDependency d, ConfigRootProbe.Probe probe,
+    /**
+     * TASK-11: filters each declared extension's raw reachable-jar subtree ({@link
+     * TransitiveApiAttribution.Result#reachableByExtension}) down to the jars reached by 2+ declared
+     * extensions -- exactly the ones {@link TransitiveApiAttribution.Result#exclusiveByExtension}
+     * necessarily excludes as ambiguous -- while also excluding UBIQUITOUS jars (bench follow-up: the
+     * first cut of this signal surfaced {@code jackson-databind}/{@code cdi-api}/{@code
+     * smallrye-config-core} on nearly every suspect row, which discriminates nothing and is noise, not a
+     * hint). "Ubiquitous" reuses {@link RootInheritance#UBIQUITY_THRESHOLD} -- the same "more than 50% of
+     * the universe" cutoff {@link RootInheritance#inherit} already applies to config-root inheritance, not
+     * a second, independently-tuned number -- but against {@code totalDeclaredExtensions} rather than
+     * {@code RootInheritance}'s whole-resolved-model denominator: {@link
+     * TransitiveApiAttribution.Result#extensionsReachingJar} only ever ranges over declared extensions
+     * (the BFS roots/owners), so that is the correct universe size for this signal specifically.
+     *
+     * <p>These are the only candidates the shared-referenced-jars hint considers; an extension absent from
+     * the result had no non-ubiquitous shared jars in its subtree at all. Extracted as a pure function,
+     * like the TASK-5 helpers above, so the candidate-selection logic is unit-testable without a real
+     * {@code ApplicationModel} or jar I/O.
+     *
+     * @param totalDeclaredExtensions denominator for the ubiquity cutoff: the number of the project's
+     *                                directly-declared extensions (the same population {@code
+     *                                extensionsReachingJar}'s owner sets are drawn from)
+     */
+    static Map<String, Set<String>> sharedCandidateJars(Map<String, Set<String>> reachableByExtension,
+            Map<String, Set<String>> extensionsReachingJar, int totalDeclaredExtensions) {
+        Map<String, Set<String>> result = new LinkedHashMap<>();
+        for (Map.Entry<String, Set<String>> entry : reachableByExtension.entrySet()) {
+            Set<String> shared = new TreeSet<>();
+            for (String jarGa : entry.getValue()) {
+                int owners = extensionsReachingJar.getOrDefault(jarGa, Set.of()).size();
+                if (owners >= 2 && owners <= totalDeclaredExtensions * RootInheritance.UBIQUITY_THRESHOLD) {
+                    shared.add(jarGa);
+                }
+            }
+            if (!shared.isEmpty()) {
+                result.put(entry.getKey(), shared);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * TASK-11: the GAs of every scanned jar whose contained classes the project's compiled classes
+     * actually reference, per {@code jandexReferenced} -- the "(b) present in the project's
+     * referenced-type set" half of the shared-referenced-jars hint (the "(a) reached by 2+ declared
+     * extensions" half is {@link #sharedCandidateJars}). A jar whose scan failed, or that was never
+     * scanned at all (absent from {@code scans}), is conservatively treated as not referenced.
+     */
+    static Set<String> referencedJarGas(Map<String, PlainJarScan> scans, Set<String> jandexReferenced) {
+        Set<String> result = new TreeSet<>();
+        for (Map.Entry<String, PlainJarScan> entry : scans.entrySet()) {
+            PlainJarScan scan = entry.getValue();
+            if (scan.error() == null && scan.containedClasses().stream().anyMatch(jandexReferenced::contains)) {
+                result.add(entry.getKey());
+            }
+        }
+        return result;
+    }
+
+    /**
+     * TASK-11: declared extension GA -&gt; the {@link ExtensionReport.SharedReferencedJar} hints for its
+     * shared, project-referenced jars. Conservative by construction: this only ever narrows {@link
+     * #sharedCandidateJars}' output down to the referenced subset, so it can never manufacture a used
+     * verdict; per the plan ("the hint informs human triage, never upgrades"), {@link #classifyExtension}
+     * is the one place responsible for only attaching an entry to an already-SUSPECT row, never letting it
+     * influence the verdict decision itself. Extracted as a pure function, like the other TASK-5/TASK-11
+     * helpers, so the hint-assembly logic is unit-testable without a real {@code ApplicationModel} or jar
+     * I/O. An extension with no qualifying hint is absent from the result, not mapped to an empty list.
+     */
+    static Map<String, List<ExtensionReport.SharedReferencedJar>> sharedReferencedJarsHint(
+            Map<String, Set<String>> sharedCandidateJarsByExtension, Map<String, Set<String>> extensionsReachingJar,
+            Set<String> referencedJarGas) {
+        Map<String, List<ExtensionReport.SharedReferencedJar>> result = new LinkedHashMap<>();
+        for (Map.Entry<String, Set<String>> entry : sharedCandidateJarsByExtension.entrySet()) {
+            String extensionGa = entry.getKey();
+            List<ExtensionReport.SharedReferencedJar> hints = new ArrayList<>();
+            for (String jarGa : entry.getValue()) {
+                if (!referencedJarGas.contains(jarGa)) {
+                    continue;
+                }
+                Set<String> alsoReachableFrom = new TreeSet<>(extensionsReachingJar.getOrDefault(jarGa, Set.of()));
+                alsoReachableFrom.remove(extensionGa);
+                hints.add(new ExtensionReport.SharedReferencedJar(jarGa, new ArrayList<>(alsoReachableFrom)));
+            }
+            if (!hints.isEmpty()) {
+                result.put(extensionGa, hints);
+            }
+        }
+        return result;
+    }
+
+    static ExtensionReport classifyExtension(ResolvedDependency d, ConfigRootProbe.Probe probe,
             Map<String, List<String>> keysWonByOwner, Map<String, List<String>> inheritedKeysByGa,
             RootInheritance.Result inheritance, boolean bytecodeReferenced,
-            Map<String, CapabilityJoin.Edge> capabilityNewlyUsed, String bytecodeViaTransitiveApi) {
+            Map<String, CapabilityJoin.Edge> capabilityNewlyUsed, String bytecodeViaTransitiveApi,
+            List<ExtensionReport.SharedReferencedJar> sharedReferencedJarsHint) {
         String gaKey = ga(d);
 
         List<String> ownKeys = keysWonByOwner.getOrDefault(gaKey, List.of());
@@ -498,6 +611,9 @@ public final class Analyzer {
         Set<ConfigRootSource> configSource = Set.of();
         List<RootInheritance.InheritedRoot> inheritedRoots = List.of();
         String note = null;
+        // TASK-11: only ever set on the two SUSPECT-producing branches below -- this is what makes "the
+        // hint never upgrades the verdict" a structural property of this method, not just documented.
+        List<ExtensionReport.SharedReferencedJar> sharedReferencedJars = List.of();
 
         if (bytecodeReferenced) {
             verdict = Verdict.USED_BYTECODE;
@@ -524,9 +640,11 @@ public final class Analyzer {
             configRoots.addAll(probe.roots());
             configSource = probe.sourcesOf(probe.roots());
             note = "config roots known, but no application key falls under them";
+            sharedReferencedJars = sharedReferencedJarsHint;
         } else {
             verdict = Verdict.SUSPECT;
             note = "no config-root metadata found in the runtime or deployment jar";
+            sharedReferencedJars = sharedReferencedJarsHint;
         }
 
         if (probe.error != null) {
@@ -536,7 +654,8 @@ public final class Analyzer {
         List<String> capabilityEvidence = capabilityEdge == null ? List.of() : List.of(evidenceOf(capabilityEdge));
 
         return new ExtensionReport(gaKey, true, verdict, inherited, configRoots, configMatchedKeys, configSource,
-                inheritedRoots, bytecodeReferenced, capabilityEvidence, note, bytecodeViaTransitiveApi);
+                inheritedRoots, bytecodeReferenced, capabilityEvidence, note, bytecodeViaTransitiveApi,
+                sharedReferencedJars);
     }
 
     private static String evidenceOf(CapabilityJoin.Edge edge) {
@@ -551,14 +670,14 @@ public final class Analyzer {
         PlainJarScan scan = plainJarScans.get(gaKey);
         if (scan != null && scan.error() != null) {
             return new ExtensionReport(gaKey, false, Verdict.SUSPECT, false, Set.of(), List.of(), Set.of(), List.of(),
-                    false, List.of(), "bytecode scan failed: " + scan.error(), null);
+                    false, List.of(), "bytecode scan failed: " + scan.error(), null, List.of());
         }
         Set<String> contained = scan == null ? Set.of() : scan.containedClasses();
         boolean used = contained.stream().anyMatch(asmReferenced::contains);
         Verdict verdict = used ? Verdict.USED_BYTECODE : Verdict.SUSPECT;
         String note = used ? null : "plain jar: no reference found in compiled classes (bytecode signal only)";
         return new ExtensionReport(gaKey, false, verdict, false, Set.of(), List.of(), Set.of(), List.of(), used,
-                List.of(), note, null);
+                List.of(), note, null, List.of());
     }
 
     /**
@@ -578,19 +697,21 @@ public final class Analyzer {
     }
 
     /**
-     * The union, across every extension, of {@link TransitiveApiAttribution#attribute}'s exclusive jar
-     * GAs, resolved back to their {@link ResolvedDependency} so {@link #containedClassesConcurrently} can
-     * scan each one exactly once (a jar is exclusive to at most one extension by construction, so no
-     * GA appears under two different extensions here).
+     * The union, across every extension, of a per-extension candidate-jar-GA map's values, resolved back
+     * to their {@link ResolvedDependency} so {@link #containedClassesConcurrently} can scan each one
+     * exactly once. Shared by both {@link TransitiveApiAttribution.Result#exclusiveByExtension} (TASK-5,
+     * where a jar GA appears under at most one extension by construction) and {@link #sharedCandidateJars}
+     * (TASK-11, where a jar GA can legitimately appear under several extensions) -- either way the
+     * {@link LinkedHashSet} union de-duplicates it down to one scan.
      */
-    private static List<ResolvedDependency> exclusiveJarDependencies(Map<String, Set<String>> exclusiveJarsByExtension,
+    private static List<ResolvedDependency> resolvedJarDependencies(Map<String, Set<String>> jarsByExtension,
             Map<String, ResolvedDependency> allDepsByGa) {
-        Set<String> allExclusiveGas = new LinkedHashSet<>();
-        for (Set<String> jarGas : exclusiveJarsByExtension.values()) {
-            allExclusiveGas.addAll(jarGas);
+        Set<String> allGas = new LinkedHashSet<>();
+        for (Set<String> jarGas : jarsByExtension.values()) {
+            allGas.addAll(jarGas);
         }
         List<ResolvedDependency> out = new ArrayList<>();
-        for (String jarGa : allExclusiveGas) {
+        for (String jarGa : allGas) {
             ResolvedDependency dep = allDepsByGa.get(jarGa);
             if (dep != null) {
                 out.add(dep);

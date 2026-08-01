@@ -57,15 +57,20 @@ class TransitiveApiAttributionTest {
         ResolvedDependency extA = dependency("io.ext", "ext-a").setRuntimeExtensionArtifact()
                 .setDirectDependencies(List.of(Dependency.of("io.lib", "lib-exclusive-a"))).build();
 
-        Map<String, Set<String>> result = TransitiveApiAttribution.attribute(List.of(extA),
+        TransitiveApiAttribution.Result result = TransitiveApiAttribution.attribute(List.of(extA),
                 byGa(extA, exclusive), Set.of("io.ext:ext-a"));
 
-        assertThat(result.get("io.ext:ext-a")).containsExactly("io.lib:lib-exclusive-a");
+        assertThat(result.exclusiveByExtension().get("io.ext:ext-a")).containsExactly("io.lib:lib-exclusive-a");
     }
 
     /**
      * Case: a jar reachable from two different extensions' subtrees is shared, not exclusive, and must
      * not be attributed to either -- ambiguity must not manufacture a used verdict (plan item 1).
+     *
+     * <p>TASK-11: also verifies the raw reachability data {@link TransitiveApiAttribution.Result} exposes
+     * alongside the exclusivity decision -- both extensions' subtrees still list the shared jar as
+     * reachable, and {@code extensionsReachingJar} names both owners -- since that is exactly the data
+     * {@code Analyzer}'s shared-referenced-jars hint reuses instead of recomputing the BFS.
      */
     @Test
     void doesNotAttributeAJarReachableFromTwoExtensions() {
@@ -75,11 +80,15 @@ class TransitiveApiAttributionTest {
         ResolvedDependency extB = dependency("io.ext", "ext-b").setRuntimeExtensionArtifact()
                 .setDirectDependencies(List.of(Dependency.of("io.lib", "lib-shared"))).build();
 
-        Map<String, Set<String>> result = TransitiveApiAttribution.attribute(List.of(extA, extB),
+        TransitiveApiAttribution.Result result = TransitiveApiAttribution.attribute(List.of(extA, extB),
                 byGa(extA, extB, shared), Set.of("io.ext:ext-a", "io.ext:ext-b"));
 
-        assertThat(result).doesNotContainKey("io.ext:ext-a");
-        assertThat(result).doesNotContainKey("io.ext:ext-b");
+        assertThat(result.exclusiveByExtension()).doesNotContainKey("io.ext:ext-a");
+        assertThat(result.exclusiveByExtension()).doesNotContainKey("io.ext:ext-b");
+        assertThat(result.reachableByExtension().get("io.ext:ext-a")).containsExactly("io.lib:lib-shared");
+        assertThat(result.reachableByExtension().get("io.ext:ext-b")).containsExactly("io.lib:lib-shared");
+        assertThat(result.extensionsReachingJar().get("io.lib:lib-shared"))
+                .containsExactly("io.ext:ext-a", "io.ext:ext-b");
     }
 
     /**
@@ -92,10 +101,10 @@ class TransitiveApiAttributionTest {
         ResolvedDependency extA = dependency("io.ext", "ext-a").setRuntimeExtensionArtifact()
                 .setDirectDependencies(List.of(Dependency.of("io.lib", "lib-direct"))).build();
 
-        Map<String, Set<String>> result = TransitiveApiAttribution.attribute(List.of(extA),
+        TransitiveApiAttribution.Result result = TransitiveApiAttribution.attribute(List.of(extA),
                 byGa(extA, directAndExclusive), Set.of("io.ext:ext-a"));
 
-        assertThat(result).doesNotContainKey("io.ext:ext-a");
+        assertThat(result.exclusiveByExtension()).doesNotContainKey("io.ext:ext-a");
     }
 
     /**
@@ -111,11 +120,11 @@ class TransitiveApiAttributionTest {
         ResolvedDependency extA = dependency("io.ext", "ext-a").setRuntimeExtensionArtifact()
                 .setDirectDependencies(List.of(Dependency.of("io.ext", "ext-b"))).build();
 
-        Map<String, Set<String>> result = TransitiveApiAttribution.attribute(List.of(extA, extB),
+        TransitiveApiAttribution.Result result = TransitiveApiAttribution.attribute(List.of(extA, extB),
                 byGa(extA, extB, beyondB), Set.of("io.ext:ext-a", "io.ext:ext-b"));
 
-        assertThat(result).doesNotContainKey("io.ext:ext-a");
-        assertThat(result.get("io.ext:ext-b")).containsExactly("io.lib:lib-beyond-b");
+        assertThat(result.exclusiveByExtension()).doesNotContainKey("io.ext:ext-a");
+        assertThat(result.exclusiveByExtension().get("io.ext:ext-b")).containsExactly("io.lib:lib-beyond-b");
     }
 
     /**
@@ -137,12 +146,12 @@ class TransitiveApiAttributionTest {
 
         // allExtensionGas includes the nested extension so the BFS recognizes and traverses through it;
         // only declaredExtensionA is passed as a root/owner (it alone has a report row).
-        Map<String, Set<String>> result = TransitiveApiAttribution.attribute(List.of(declaredExtensionA),
+        TransitiveApiAttribution.Result result = TransitiveApiAttribution.attribute(List.of(declaredExtensionA),
                 byGa(declaredExtensionA, nestedExtensionB, plainJarX),
                 Set.of("io.ext:ext-a", "io.ext:ext-b-internal"));
 
-        assertThat(result.get("io.ext:ext-a")).containsExactly("io.lib:lib-x");
-        assertThat(result).doesNotContainKey("io.ext:ext-b-internal");
+        assertThat(result.exclusiveByExtension().get("io.ext:ext-a")).containsExactly("io.lib:lib-x");
+        assertThat(result.exclusiveByExtension()).doesNotContainKey("io.ext:ext-b-internal");
     }
 
     private static Map<String, ResolvedDependency> byGa(ResolvedDependency... deps) {

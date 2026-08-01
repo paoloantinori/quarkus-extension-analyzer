@@ -81,6 +81,13 @@ public final class Reporter {
                 if (r.note() != null && !r.note().isBlank()) {
                     sb.append("      note          : ").append(r.note()).append('\n');
                 }
+                // TASK-11: one line per shared-referenced-jar hint -- suspect rows only, per
+                // ExtensionReport#sharedReferencedJars's contract; never implies a different verdict.
+                for (ExtensionReport.SharedReferencedJar hint : r.sharedReferencedJars()) {
+                    sb.append("      hint          : project references shared jar ").append(hint.ga())
+                            .append(", also reachable from ")
+                            .append(String.join(", ", hint.alsoReachableFrom())).append('\n');
+                }
             }
         }
         // TASK-10: extension-level counts first -- that is the question this tool exists to answer --

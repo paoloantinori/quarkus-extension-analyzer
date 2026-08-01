@@ -58,6 +58,10 @@ class ReporterTest {
                 + "extension's own config root (quarkus.datasource.)\"");
         // TASK-5: the transitive-API evidence field round-trips under its own (camelCase, not kebab) name.
         assertThat(json).contains("\"bytecodeViaTransitiveApi\" : \"io.fabric8:kubernetes-client\"");
+        // TASK-11: the shared-referenced-jars hint round-trips as {ga, alsoReachableFrom} objects.
+        assertThat(json).contains("\"sharedReferencedJars\"");
+        assertThat(json).contains("\"ga\" : \"jakarta.validation:jakarta.validation-api\"");
+        assertThat(json).contains("\"alsoReachableFrom\" : [ \"io.quarkus:quarkus-apicurio-registry-avro\" ]");
         // TASK-10: extensions{}/plainJars{} split blocks round-trip alongside the combined summary block
         // kept for backward compatibility. sampleReport() has 5 extension rows (2 used-config, 2
         // used-bytecode, 1 suspect) and 1 plain-jar row (suspect).
@@ -90,6 +94,11 @@ class ReporterTest {
         assertThat(text).contains("io.quarkus:quarkus-jdbc-h2 (inherited)");
         assertThat(text).contains("inherited from io.quarkus:quarkus-agroal: quarkus.datasource.");
         assertThat(text).doesNotContain("<-");
+        // TASK-11: the shared-referenced-jars hint renders under the suspect row, naming the jar and the
+        // other declared extension that also reaches it.
+        assertThat(text).contains("hint          : project references shared jar "
+                + "jakarta.validation:jakarta.validation-api, also reachable from "
+                + "io.quarkus:quarkus-apicurio-registry-avro");
         assertThat(text).contains("used-bytecode:");
         assertThat(text).contains("io.quarkus:quarkus-kubernetes-client");
         assertThat(text).contains("referenced via transitive API of io.fabric8:kubernetes-client");
@@ -125,30 +134,37 @@ class ReporterTest {
     private static AnalysisReport sampleReport() {
         ExtensionReport used = new ExtensionReport("io.quarkus:quarkus-agroal", true, Verdict.USED_CONFIG, false,
                 Set.of("quarkus.datasource."), List.of("quarkus.datasource.db-kind"),
-                Set.of(ConfigRootSource.CONFIG_MODEL_JSON), List.of(), false, List.of(), null, null);
+                Set.of(ConfigRootSource.CONFIG_MODEL_JSON), List.of(), false, List.of(), null, null, List.of());
         ExtensionReport inherited = new ExtensionReport("io.quarkus:quarkus-jdbc-h2", true, Verdict.USED_CONFIG, true,
                 Set.of("quarkus.datasource."), List.of("quarkus.datasource.db-kind"),
                 Set.of(ConfigRootSource.INHERITED),
                 List.of(new RootInheritance.InheritedRoot("quarkus.datasource.", "io.quarkus:quarkus-agroal")),
-                false, List.of(), null, null);
+                false, List.of(), null, null, List.of());
+        // TASK-11: a suspect row carrying the shared-referenced-jars hint (hibernate-validator/
+        // jakarta.validation-api bench case) -- reachable from this extension's subtree but also from
+        // quarkus-apicurio-registry-avro, so exclusive attribution refuses it, yet the project's bytecode
+        // does reference it.
         ExtensionReport suspect = new ExtensionReport("io.quarkus:quarkus-scheduler", true, Verdict.SUSPECT, false,
                 Set.of("quarkus.scheduler."), List.of(), Set.of(ConfigRootSource.EXTENSION_YAML), List.of(), false,
-                List.of(), "config roots known, but no application key falls under them", null);
+                List.of(), "config roots known, but no application key falls under them", null,
+                List.of(new ExtensionReport.SharedReferencedJar("jakarta.validation:jakarta.validation-api",
+                        List.of("io.quarkus:quarkus-apicurio-registry-avro"))));
         // TASK-5: an extension whose own jar was never referenced, but whose exclusive transitive
         // non-Quarkus API jar was, becomes used-bytecode with bytecodeViaTransitiveApi carrying the jar's
         // ga as evidence.
         ExtensionReport viaTransitiveApi = new ExtensionReport("io.quarkus:quarkus-kubernetes-client", true,
                 Verdict.USED_BYTECODE, false, Set.of(), List.of(), Set.of(), List.of(), true, List.of(), null,
-                "io.fabric8:kubernetes-client");
+                "io.fabric8:kubernetes-client", List.of());
         // TASK-5 follow-up: an extension whose own runtime artifact IS referenced never carries
         // bytecodeViaTransitiveApi (Analyzer skips transitive attribution for it entirely).
         ExtensionReport ownJarReferenced = new ExtensionReport("io.quarkus:quarkus-jackson", true,
-                Verdict.USED_BYTECODE, false, Set.of(), List.of(), Set.of(), List.of(), true, List.of(), null, null);
+                Verdict.USED_BYTECODE, false, Set.of(), List.of(), Set.of(), List.of(), true, List.of(), null, null,
+                List.of());
         // TASK-10: a plain-jar (quarkusExtension = false) row, so extensions{}/plainJars{} split into
         // distinct, non-trivial counts. classifyPlainJar only ever yields USED_BYTECODE or SUSPECT.
         ExtensionReport plainJarSuspect = new ExtensionReport("io.grpc:grpc-services", false, Verdict.SUSPECT, false,
                 Set.of(), List.of(), Set.of(), List.of(), false, List.of(),
-                "no bytecode reference found in compiled classes", null);
+                "no bytecode reference found in compiled classes", null, List.of());
         List<ExtensionReport> rows = List.of(used, inherited, suspect, viaTransitiveApi, ownJarReferenced, plainJarSuspect);
         List<ExtensionReport> extensionRows = List.of(used, inherited, suspect, viaTransitiveApi, ownJarReferenced);
         List<ExtensionReport> plainJarRows = List.of(plainJarSuspect);

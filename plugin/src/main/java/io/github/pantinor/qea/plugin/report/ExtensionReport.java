@@ -50,6 +50,14 @@ import java.util.Set;
  *                            reference, or {@code null} when no such attribution fired. When set, it is
  *                            the reason {@link #bytecodeReferenced} is {@code true} for an extension whose
  *                            own runtime artifact was not itself referenced.
+ * @param sharedReferencedJars TASK-11: evidence hints for a {@link Verdict#SUSPECT} row only, never for
+ *                            any other verdict -- always empty otherwise, mirroring the {@link
+ *                            #capabilityEvidence}/{@link #configMatchedKeys} "empty list, not null"
+ *                            convention. Each entry names a jar reachable from this extension's subtree
+ *                            that {@link #bytecodeViaTransitiveApi} could not attribute (it is reachable
+ *                            from 2+ declared extensions, so exclusive attribution would be a guess) but
+ *                            that the project's compiled classes do reference. The hint informs human
+ *                            triage of the suspect row; it never upgrades the verdict itself.
  */
 public record ExtensionReport(
         String ga,
@@ -63,5 +71,18 @@ public record ExtensionReport(
         boolean bytecodeReferenced,
         List<String> capabilityEvidence,
         String note,
-        String bytecodeViaTransitiveApi) {
+        String bytecodeViaTransitiveApi,
+        List<SharedReferencedJar> sharedReferencedJars) {
+
+    /**
+     * TASK-11: one shared jar this extension's subtree reaches that the project's compiled classes
+     * reference, plus which OTHER declared extensions also reach it (the reason it was excluded from
+     * {@link #bytecodeViaTransitiveApi}'s exclusive attribution in the first place).
+     *
+     * @param ga               {@code groupId:artifactId} of the shared jar
+     * @param alsoReachableFrom the other declared extensions' GAs that also reach {@link #ga}, sorted;
+     *                         never includes this row's own {@link ExtensionReport#ga}
+     */
+    public record SharedReferencedJar(String ga, List<String> alsoReachableFrom) {
+    }
 }
