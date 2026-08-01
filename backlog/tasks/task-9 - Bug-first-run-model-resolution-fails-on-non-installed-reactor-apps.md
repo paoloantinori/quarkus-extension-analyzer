@@ -1,10 +1,10 @@
 ---
 id: TASK-9
 title: 'Bug: first-run model resolution fails on non-installed reactor apps'
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-08-01 17:21'
-updated_date: '2026-08-01 19:14'
+updated_date: '2026-08-01 20:18'
 labels: []
 dependencies: []
 priority: high
@@ -28,8 +28,14 @@ Fix (Fable):
 Bundled second item, TASK-10: split the report summary by quarkusExtension: JSON gains extensions{} and plainJars{} blocks (keep the combined block for compatibility, labeled), Reporter.toText prints the extension-level line first then plain jars; update ReporterTest and any test asserting the old single summary. Execution delegated; Fable verifies both benches.
 <!-- SECTION:PLAN:END -->
 
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Workspace-discovery fix verified on both benches (rest-heroes clean-compile repro passes; registry regression identical). ChainedMavenWorkspaceReader on public interfaces after the maven-core internal-class trap was caught empirically. Two skips recorded honestly (workspace caching for lifecycle-bound builds; interpolation/profile-aware loading) as future notes.
+<!-- SECTION:NOTES:END -->
+
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Run /simplify on the changed code and apply the cleanups it surfaces
-- [ ] #2 Run /code-review at high effort on the final diff and resolve every finding
+- [x] #1 Run /simplify on the changed code and apply the cleanups it surfaces
+- [x] #2 Run /code-review at high effort on the final diff and resolve every finding
 <!-- DOD:END -->

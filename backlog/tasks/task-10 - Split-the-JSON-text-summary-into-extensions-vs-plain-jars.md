@@ -1,10 +1,10 @@
 ---
 id: TASK-10
 title: Split the JSON/text summary into extensions vs plain jars
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-08-01 17:21'
-updated_date: '2026-08-01 19:14'
+updated_date: '2026-08-01 20:18'
 labels: []
 dependencies: []
 ordinal: 10000
@@ -18,6 +18,12 @@ The report summary block aggregates extensions and plain jars into one count (us
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Run /simplify on the changed code and apply the cleanups it surfaces
-- [ ] #2 Run /code-review at high effort on the final diff and resolve every finding
+- [x] #1 Run /simplify on the changed code and apply the cleanups it surfaces
+- [x] #2 Run /code-review at high effort on the final diff and resolve every finding
 <!-- DOD:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+extensions{}/plainJars{}/combined split in JSON and text; ReporterTest covers Summary.combine. Motivated by the second-bench triage error.
+<!-- SECTION:NOTES:END -->
