@@ -115,6 +115,26 @@ Remaining suspects (6): `apicurio-registry-config-index`,
 These need human triage or future signals (DI-produced bean types remains the
 strongest candidate).
 
+## TASK-12 addendum: member-level annotations in the bytecode signal
+
+TASK-12 widens signal 2's Jandex extraction: `referencedTypesViaJandex` now
+iterates `ClassInfo.annotations()` (class-, field-, method- and record-component-level
+annotations) instead of `declaredAnnotations()` (class-level only). The previous
+behavior missed field and record-component annotations, which hid
+`jakarta.validation-api` from the signal when `@NotNull` sat on a record component
+(the super-heroes rest-fights `FightRequest` case); the field/method TYPE extraction
+loops are unchanged.
+
+Bench re-baselining is PENDING (shared machine; deferred to a user decision) and the
+numbers below are EXPECTED, NOT MEASURED:
+
+- Apicurio registry bench: the wider annotation view is expected to reduce the
+  suspect count below the TASK-5 baseline of 6, for any extension whose exclusive
+  jar is referenced only through a member annotation.
+- super-heroes rest-fights: `hibernate-validator` is expected to flip from suspect
+  (TASK-11 shared-referenced-jar hint only) to `used-bytecode`, superseding that
+  shared-jar hint, once `@NotNull` on `FightRequest`'s record component is seen.
+
 ## Verified conclusions
 
 1. The three-signal design measurably improves on config-only classification

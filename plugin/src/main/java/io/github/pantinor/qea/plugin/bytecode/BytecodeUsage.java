@@ -62,7 +62,9 @@ public final class BytecodeUsage {
 
     /**
      * Every type referenced, in declaration position, by the classes under {@code classesDirs}: field
-     * types, method return/parameter types, superclass, interfaces and annotation types.
+     * types, method return/parameter types, superclass, interfaces and annotation types. Annotation types
+     * include member-level (field, method, record-component) annotations, not just class-level ones
+     * (TASK-12: previously missed because {@code declaredAnnotations()} excluded them).
      */
     public static Set<String> referencedTypesViaJandex(List<Path> classesDirs) throws IOException {
         Indexer indexer = new Indexer();
@@ -101,7 +103,11 @@ public final class BytecodeUsage {
                     addName(referenced, topLevelName(param));
                 }
             }
-            for (AnnotationInstance ai : ci.declaredAnnotations()) {
+            // annotations() is the broad Jandex view: class-, field-, method- and record-component-level
+            // annotations. declaredAnnotations()/classAnnotations() would miss member-level annotations
+            // such as a @NotNull on a record component (TASK-12: super-heroes rest-fights FightRequest),
+            // hiding jakarta.validation-api from this signal.
+            for (AnnotationInstance ai : ci.annotations()) {
                 addName(referenced, ai.name());
             }
         }
