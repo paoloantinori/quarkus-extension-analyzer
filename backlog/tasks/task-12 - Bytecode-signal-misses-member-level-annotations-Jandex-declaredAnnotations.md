@@ -1,9 +1,10 @@
 ---
 id: TASK-12
 title: Bytecode signal misses member-level annotations (Jandex declaredAnnotations)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-01 21:10'
+updated_date: '2026-08-05 05:57'
 labels: []
 dependencies: []
 priority: high
@@ -18,6 +19,12 @@ Found during TASK-11 bench verification: BytecodeUsage.referencedTypesViaJandex 
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Run /simplify on the changed code and apply the cleanups it surfaces
-- [ ] #2 Run /code-review at high effort on the final diff and resolve every finding
+- [x] #1 Run /simplify on the changed code and apply the cleanups it surfaces
+- [x] #2 Run /code-review at high effort on the final diff and resolve every finding
 <!-- DOD:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Switched BytecodeUsage.referencedTypesViaJandex from ClassInfo.declaredAnnotations() (class-level only) to ClassInfo.annotations() so field/method/record-component annotations enter the referenced-type set; jakarta.validation-api is no longer invisible to signal 2 (the rest-fights FightRequest record-component case). Verified against Jandex 3.5.3 source + javap. New BytecodeUsageTest compiles an in-memory source set with javac and asserts field-, record-component- and parameter-position capture (fails with declaredAnnotations(), passes with annotations()). M2-VALIDATION.md gains a TASK-12 addendum marking the bench re-baseline EXPECTED-not-MEASURED. Full plugin suite 83/83 green. /simplify clean (one finding skipped: distinct marker names intentionally guard per-position capture); high-effort /code-review correct, no findings (one non-blocking nit resolved: added parameter-position assertion). Bench re-baseline deferred to TASK-13 because the shared machine is running other Java builds and soak tests.
+<!-- SECTION:FINAL_SUMMARY:END -->
