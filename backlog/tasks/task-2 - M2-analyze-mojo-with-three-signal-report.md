@@ -20,7 +20,7 @@ Maven plugin with analyze goal producing the used-bytecode / used-config / used-
 
 <!-- SECTION:PLAN:BEGIN -->
 Design decisions locked by M1 evidence (docs/SPIKE-RESULTS.md):
-1. Module layout: new plugin/ Maven module (maven-plugin packaging, groupId io.github.pantinor, artifactId quarkus-extension-analyzer-maven-plugin), spike/ stays as-is for reference.
+1. Module layout: new plugin/ Maven module (maven-plugin packaging, groupId io.github.paoloantinori, artifactId quarkus-extension-analyzer-maven-plugin), spike/ stays as-is for reference.
 2. Model resolution: reuse BootstrapAppModelResolver (proven in M1) but inside the mojo, fed by the session's RepositorySystem/repo session instead of a standalone resolver; the analyzed project is the current MavenProject.
 3. Source D upgrade: probe the -deployment jar too (deployment GAV comes from META-INF/quarkus-extension.properties deployment-artifact key), closing the BUILD_TIME-only config-root gap M1 documented.
 4. Root attribution: narrowest-claimant-wins across extensions to kill the quarkus-logging-json class of false positives; keep B+C+D union for discovery, drop per-key credit to broader roots claimed more narrowly by another extension.
