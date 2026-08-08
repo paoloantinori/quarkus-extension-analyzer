@@ -2,11 +2,13 @@
 
 Dependency-usage analysis that understands Quarkus.
 
-**Status:** M1 (spike) is done, with evidence in
-[docs/SPIKE-RESULTS.md](docs/SPIKE-RESULTS.md). M2 (the `analyze` mojo) is
-implemented in [`plugin/`](plugin/) and has been validated on the Apicurio
-Registry bench; see [docs/M2-VALIDATION.md](docs/M2-VALIDATION.md) for the
-numbers. See [docs/DESIGN.md](docs/DESIGN.md) for the full architecture.
+**Status:** M1 (spike), M2 (the `analyze` mojo), and M3 (ignore-list interop)
+are done and validated on two benches (Apicurio Registry and Quarkus
+super-heroes); see [docs/M2-VALIDATION.md](docs/M2-VALIDATION.md) and
+[docs/SECOND-BENCH.md](docs/SECOND-BENCH.md). M4 (a Quarkiverse evaluation)
+concluded the plugin ships standalone, not as a Quarkiverse extension; see
+[docs/M4-QUARKIVERSE-EVAL.md](docs/M4-QUARKIVERSE-EVAL.md). See
+[docs/DESIGN.md](docs/DESIGN.md) for the full architecture.
 
 ## The problem
 
@@ -90,7 +92,13 @@ the natural long-term home is [Quarkiverse](https://github.com/quarkiverse).
   goal generates `ignoredUnusedDeclaredDependencies` / DepClean `ignoreDependencies`
   fragments from the `used-config`/`used-capability` extensions; the JSON report's
   `ignoreRecommendations` array carries the same data for CI consumers.
-- **M4, community** (open): evaluate a Quarkiverse proposal.
+- **M4, community** -- done. Evaluated proposing to Quarkiverse; conclusion:
+  ship standalone (Maven Central), since Quarkiverse hosts Quarkus extensions,
+  not Maven plugins. A build-time-extension form (M5) is a deferred option. See
+  [docs/M4-QUARKIVERSE-EVAL.md](docs/M4-QUARKIVERSE-EVAL.md).
+- **M5, extension form** (deferred, data-gated): recast the analyzer as a
+  Quarkus build-time extension and propose to Quarkiverse, if bench data and
+  adoption justify it.
 
 ## Usage
 

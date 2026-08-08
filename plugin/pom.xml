@@ -9,7 +9,7 @@
   <version>1.0-SNAPSHOT</version>
   <packaging>maven-plugin</packaging>
 
-  <name>quarkus-extension-analyzer :: M2 plugin</name>
+  <name>quarkus-extension-analyzer :: Maven plugin</name>
   <description>
     Maven plugin classifying declared Quarkus extensions as used-bytecode / used-config /
     used-capability / suspect, per docs/DESIGN.md. Production module; spike/ stays as the
