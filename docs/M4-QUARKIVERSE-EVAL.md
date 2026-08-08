@@ -12,7 +12,7 @@ tool outage; requirements are enumerated from the hub home).
 Quarkiverse is, by its own definition, a home for **Quarkus extensions**. The two genuine paths
 are:
 
-- **(A) Stay standalone** under `io.github.pantinor` (as today), publish to Maven Central, and
+- **(A) Stay standalone** under `io.github.paoloantinori` (as today), publish to Maven Central, and
   promote via Quarkus channels. This is cheap, fits the artifact, and matches how every
   comparable analyzer is housed. **Recommended for the near term.**
 - **(B) Recast as a Quarkus build-time extension** (a `-deployment` artifact with a `@BuildStep`
@@ -69,7 +69,7 @@ So "does not fit Quarkiverse" is an explicitly supported status, not a dead end.
 | License ASL 2.0 [2] | Apache-2.0 | yes |
 | Parent POM `io.quarkiverse:quarkiverse-parent` [2][5] | standalone parent | would need adoption |
 | Ecosystem CI cross-testing vs Quarkus core [2][6] | n/a (not an extension) | no, not meaningful |
-| Repo / artifactId `quarkus-` prefix; groupId `io.quarkiverse.*` [3] | `*-maven-plugin`, `io.github.pantinor` | no, conflicts (plugin artifactId convention is `*-maven-plugin`, not `quarkus-*`) |
+| Repo / artifactId `quarkus-` prefix; groupId `io.quarkiverse.*` [3] | `*-maven-plugin`, `io.github.paoloantinori` | no, conflicts (plugin artifactId convention is `*-maven-plugin`, not `quarkus-*`) |
 | Active maintainer + GitHub team [2] | solo | adoptable |
 | Docs on `docs.quarkiverse.io` [2] | repo `docs/` | movable |
 | Listing in extension catalog [2] | n/a (not an extension) | no, not eligible |
@@ -113,7 +113,7 @@ section, which cites these.)
 
 ## 5. Recommendation and prerequisites
 
-1. **Near term:** remain a standalone Maven plugin under `io.github.pantinor`; publish to Maven
+1. **Near term:** remain a standalone Maven plugin under `io.github.paoloantinori`; publish to Maven
    Central; promote through Quarkus channels (a `quarkus-dev` mailing-list note, a Quarkus blog
    guest post, a Stack Overflow `quarkus`-tagged answer pointing at the tool). Do **not** propose
    to Quarkiverse now.

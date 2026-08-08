@@ -1,0 +1,47 @@
+# TASK-7: curated value-based extension activation rules.
+#
+# Format: one rule per line, pipe-separated: key-pattern|value|target-ga
+#   - blank lines and lines starting with '#' are ignored
+#   - key-pattern is a literal dotted config key, optionally containing exactly one "{name}" placeholder
+#     standing for a single optional path segment (e.g. a named datasource: quarkus.datasource.mysql.*
+#     as well as the unnamed quarkus.datasource.*), matching io.github.paoloantinori.qea.plugin.config.
+#     AppConfigReader's profile-stripped key space (a key "may appear under any %profile prefix")
+#   - value is matched case-insensitively against every raw value AppConfigReader recorded for a
+#     matching key, across every profile
+#   - target-ga is groupId:artifactId of the extension OR plain jar the rule selects; ValueRules.matches
+#     only ever produces a row for a GA actually present among the project's resolved dependencies
+#
+# Every target-ga below was verified to exist against the Quarkus BOM this plugin resolves against
+# (quarkus.version in plugin/pom.xml, 3.33.2.1) and/or the artifact's own bytecode, not invented from
+# memory -- see backlog/tasks/task-7 for the verification trail.
+
+# --- quarkus.datasource[.<name>].db-kind -> quarkus-jdbc-<kind> (docs/DESIGN.md known-hard-case) -----
+# Verified supported db-kind values against io.quarkus.datasource.common.runtime.DatabaseKind
+# (quarkus-datasource-common jar): db2, h2, mariadb, mssql, mysql, oracle, postgresql. There is no
+# "derby" Quarkus JDBC extension (absent from the BOM); it is deliberately not in this table.
+quarkus.datasource.{name}.db-kind|db2|io.quarkus:quarkus-jdbc-db2
+quarkus.datasource.{name}.db-kind|h2|io.quarkus:quarkus-jdbc-h2
+quarkus.datasource.{name}.db-kind|mariadb|io.quarkus:quarkus-jdbc-mariadb
+quarkus.datasource.{name}.db-kind|mssql|io.quarkus:quarkus-jdbc-mssql
+quarkus.datasource.{name}.db-kind|mysql|io.quarkus:quarkus-jdbc-mysql
+quarkus.datasource.{name}.db-kind|oracle|io.quarkus:quarkus-jdbc-oracle
+quarkus.datasource.{name}.db-kind|postgresql|io.quarkus:quarkus-jdbc-postgresql
+
+# --- quarkus.container-image.builder -> quarkus-container-image-<value> (SECOND-BENCH.md) -----------
+# Verified against the Quarkus BOM: quarkus-container-image-{buildpack,docker,jib,openshift,podman} are
+# five DISTINCT artifacts. podman is its own extension, not an alias of docker (the open question the
+# task plan flagged) -- confirmed both by the BOM's dependencyManagement entries and by podman shipping
+# its own quarkus-container-image-podman(-deployment) jars.
+quarkus.container-image.builder|buildpack|io.quarkus:quarkus-container-image-buildpack
+quarkus.container-image.builder|docker|io.quarkus:quarkus-container-image-docker
+quarkus.container-image.builder|jib|io.quarkus:quarkus-container-image-jib
+quarkus.container-image.builder|openshift|io.quarkus:quarkus-container-image-openshift
+quarkus.container-image.builder|podman|io.quarkus:quarkus-container-image-podman
+
+# --- quarkus.stork.<svc>.service-discovery.type=static -> stork-service-discovery-static-list --------
+# Explicit alias entry (plain jar, not a Quarkus extension): verified the provider registered under
+# type "static" is StaticListServiceDiscoveryProvider, shipped in io.smallrye.stork:
+# stork-service-discovery-static-list -- the config value is "static", the artifact suffix is
+# "static-list"; they differ, which is why this needs an explicit table entry rather than a
+# value-equals-suffix convention like the two families above.
+quarkus.stork.{name}.service-discovery.type|static|io.smallrye.stork:stork-service-discovery-static-list
