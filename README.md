@@ -95,7 +95,7 @@ the natural long-term home is [Quarkiverse](https://github.com/quarkiverse).
 ## Usage
 
 ```bash
-mvn io.github.pantinor:quarkus-extension-analyzer-maven-plugin:1.0-SNAPSHOT:analyze
+mvn io.github.paoloantinori:quarkus-extension-analyzer-maven-plugin:1.0-SNAPSHOT:analyze
 ```
 
 Run from the Quarkus application module to analyze, after `mvn compile` (the

@@ -10,7 +10,7 @@ ground-truth bench defined in [DESIGN.md](DESIGN.md#validation-bench).
 cd plugin && mvn -q install -DskipTests
 cd /path/to/apicurio-registry
 mvn -q compile -f app/pom.xml   # bytecode signal needs app/target/classes populated
-mvn io.github.pantinor:quarkus-extension-analyzer-maven-plugin:1.0-SNAPSHOT:analyze \
+mvn io.github.paoloantinori:quarkus-extension-analyzer-maven-plugin:1.0-SNAPSHOT:analyze \
     -f app/pom.xml -Dqea.reportFile=/tmp/qea-registry-app.json
 ```
 

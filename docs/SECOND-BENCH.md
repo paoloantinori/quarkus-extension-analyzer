@@ -17,7 +17,7 @@ export JAVA_HOME=~/.sdkman/candidates/java/25.0.2-tem
 export PATH=$JAVA_HOME/bin:$PATH
 
 mvn -q compile -DskipTests        # as instructed. Not sufficient alone, see "Crash" below.
-mvn io.github.pantinor:quarkus-extension-analyzer-maven-plugin:1.0-SNAPSHOT:analyze \
+mvn io.github.paoloantinori:quarkus-extension-analyzer-maven-plugin:1.0-SNAPSHOT:analyze \
     -Dqea.reportFile=/tmp/qea-superheroes.json -Dqea.ignoreFragments=true
 ```
 
