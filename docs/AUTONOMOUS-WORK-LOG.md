@@ -128,3 +128,51 @@ To be appended as work lands.
     source (40 unremovable false positives from README; suspect=5 from the
     measured bench; coordinates correct). No em-dashes. No changes forced.
 - **Commit:** below.
+
+## Final verification + handoff (2026-08-11)
+
+**Build:** `mvn -f plugin/pom.xml -T1 test` = 83/83, BUILD SUCCESS.
+
+**Repo state:** working tree clean; `main` is 13 commits ahead of origin
+(nothing pushed, per the no-outward-actions guardrail). Commits since the user
+left:
+
+- `bac3464` docs(triage): classify 8 bench suspects; defer TASK-8, file TASK-17
+- `ee4a2a4` docs(triage): resolve TASK-17 scheduler "anomaly" as not-a-bug
+- `dbf1fcc` ci: add cross-version JDK matrix workflow (17, 21)
+- `c9ffaee` docs: promotion drafts citing measured benches
+
+**Work units completed (all with end-of-unit review recorded):**
+1. Suspect triage (docs/SUSPECT-TRIAGE.md): ~50% of suspects are false
+   positives, all tracing to the shared/ubiquitous-jar attribution exclusion
+   (safety-by-design).
+2. TASK-17 resolved as not-a-bug (scheduler = shared-jar pattern, not a
+   signal-2 bug). Self-corrected my own earlier wrong "in its own jar" claim.
+3. Cross-version CI workflow (.github/workflows/cross-version.yml): JDK matrix.
+4. Promotion drafts (docs/PROMO-DRAFTS.md): quarkus-dev, blog outline, SO.
+
+**Disposition of the open backlog:**
+- TASK-8 (4th signal): deferred-with-evidence; re-framed to annotation/API-type
+  attribution; needs maintainer sign-off on weakening the shared-jar invariant.
+- TASK-14 (M5 extension form): deferred, data-gated (unchanged).
+- TASK-17: closed (not-a-bug).
+- TASK-13: already done before this run.
+
+**Decisions that need the maintainer on return:**
+- Whether to accept the shared-jar-safety weakening any producer/attribution
+  signal (TASK-8 re-frame) requires. My evidence-based recommendation: do not,
+  unless adoption pressure materializes; the false positives are honest
+  suspect-with-evidence rows, and weakening the invariant risks manufacturing
+  used-verdicts on ambiguous evidence.
+- Release: version scheme (1.0.0 vs 0.1.0) and the Central namespace/GPG setup
+  (docs/RELEASING.md). Nothing here blocks on me.
+- Whether the cross-version CI and promo drafts are fit to merge/send.
+
+**How to review this run:** read this log end to end; each commit is atomic and
+revertable (`git revert <sha>`). The two decisions I most want eyes on are
+TASK-8's deferral rationale (SUSPECT-TRIAGE.md) and the honest precision line in
+the promo drafts.
+
+**Natural stop:** I have no further high-value autonomous work that doesn't
+either (a) require the maintainer (TASK-8 design call, release mechanics) or
+(b) risk over-engineering. Stopping here until the user returns.
