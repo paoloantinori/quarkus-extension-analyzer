@@ -125,15 +125,33 @@ behavior missed field and record-component annotations, which hid
 (the super-heroes rest-fights `FightRequest` case); the field/method TYPE extraction
 loops are unchanged.
 
-Bench re-baselining is PENDING (shared machine; deferred to a user decision) and the
-numbers below are EXPECTED, NOT MEASURED:
+Bench re-baselining DONE 2026-08-11 (Apicurio `app`, Quarkus 3.38.1; rest-fights,
+Quarkus 3.38.1; analyzer resolver still pinned to 3.33.2.1, 3.x skew confirmed a
+non-issue again). Measured results, raw JSON saved under
+`docs/_bench-runs/`:
 
-- Apicurio registry bench: the wider annotation view is expected to reduce the
-  suspect count below the TASK-5 baseline of 6, for any extension whose exclusive
-  jar is referenced only through a member annotation.
-- super-heroes rest-fights: `hibernate-validator` is expected to flip from suspect
-  (TASK-11 shared-referenced-jar hint only) to `used-bytecode`, superseding that
-  shared-jar hint, once `@NotNull` on `FightRequest`'s record component is seen.
+- Apicurio registry `app`: extensions used-bytecode = 7, used-config = 7,
+  used-capability = 5, **suspect = 5** (24 total). Down from the TASK-5-era 7
+  extension suspects. The net change is `quarkus-smallrye-fault-tolerance`
+  flipping suspect to used-bytecode (via its exclusive transitive
+  `io.smallrye:smallrye-fault-tolerance-api`, now captured because its
+  method-level `@Fallback`/`@Retry` annotations reference that jar). The
+  remaining 5 suspects (`apicurio-registry-config-index`,
+  `quarkus-resteasy-client-jackson`, `quarkus-resteasy-jackson`,
+  `quarkus-scheduler`, `quarkus-smallrye-jwt`) are unchanged.
+- super-heroes rest-fights: extensions used-bytecode = 7, used-config = 11,
+  used-capability = 2, **suspect = 3** (23 total), identical to the TASK-5
+  baseline. The predicted `hibernate-validator` flip did NOT happen, for a
+  correct reason: the annotation type `jakarta.validation.constraints.NotNull`
+  lives in the shared jar `jakarta.validation:jakarta.validation-api`, and
+  TASK-5's exclusive-attribution rule deliberately excludes jars reachable from
+  2+ declared extensions. TASK-12 widened annotation *capture*, but cannot
+  override the shared-jar *membership* exclusion that guards this extension, so
+  it stays suspect (with its TASK-11 shared-jar hint intact). This is the tool
+  behaving as designed, not a regression.
+- Both benches: the TASK-9 first-run reactor-resolution fix holds from a clean
+  compile (no first-run crash; the `ChainedMavenWorkspaceReader` resolves the
+  never-installed `app`/`rest-fights` modules correctly).
 
 ## Verified conclusions
 

@@ -354,3 +354,20 @@ suspects from the original run are down to 3, one value-activation plain-jar
 suspect is resolved, and the three remaining suspects each carry the evidence
 (or the honest absence of evidence) a human triager needs, without the
 verdict itself ever being upgraded past what exclusivity allows.
+
+## TASK-13 re-run addendum (2026-08-11, post-TASK-12)
+
+Re-ran against the current super-heroes head (rest-fights, Quarkus 3.38.1;
+analyzer resolver pinned to 3.33.2.1, skew still a non-issue). Required JDK 25
+(`maven.compiler.release=25`; installed `25.0.4-tem`). Raw JSON:
+`docs/_bench-runs/rest-fights_task12_2026-08-11.json`.
+
+- extensions: used-bytecode = 7, used-config = 11, used-capability = 2,
+  **suspect = 3** (23 total). Identical to the TASK-5-era counts above.
+- `quarkus-hibernate-validator` remains suspect, with its TASK-11 shared-jar
+  hint intact. The TASK-12 widening captures `@NotNull` on the record component,
+  but the annotation type lives in the shared `jakarta.validation-api` jar, and
+  TASK-5's exclusive-attribution rule excludes shared jars, so the extension is
+  not credited a bytecode reference. This is correct-by-design, not a gap.
+- The TASK-9 first-run fix holds from a clean `mvn compile`: no
+  ApplicationModel-resolution crash.

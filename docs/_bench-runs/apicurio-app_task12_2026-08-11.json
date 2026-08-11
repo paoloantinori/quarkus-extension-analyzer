@@ -1,0 +1,777 @@
+{
+  "applicationArtifact" : "io.apicurio:apicurio-registry-app:3.3.2-SNAPSHOT",
+  "generatedAt" : "2026-08-11T15:01:28.134467Z",
+  "dependencies" : [ {
+    "ga" : "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml",
+    "quarkusExtension" : false,
+    "verdict" : "used-bytecode",
+    "configInherited" : false,
+    "configRoots" : [ ],
+    "configMatchedKeys" : [ ],
+    "configSource" : [ ],
+    "inheritedRoots" : [ ],
+    "bytecodeReferenced" : true,
+    "capabilityEvidence" : [ ],
+    "note" : null,
+    "bytecodeViaTransitiveApi" : null,
+    "valueRuleEvidence" : null,
+    "sharedReferencedJars" : [ ]
+  }, {
+    "ga" : "commons-beanutils:commons-beanutils",
+    "quarkusExtension" : false,
+    "verdict" : "suspect",
+    "configInherited" : false,
+    "configRoots" : [ ],
+    "configMatchedKeys" : [ ],
+    "configSource" : [ ],
+    "inheritedRoots" : [ ],
+    "bytecodeReferenced" : false,
+    "capabilityEvidence" : [ ],
+    "note" : "plain jar: no reference found in compiled classes (bytecode signal only)",
+    "bytecodeViaTransitiveApi" : null,
+    "valueRuleEvidence" : null,
+    "sharedReferencedJars" : [ ]
+  }, {
+    "ga" : "commons-codec:commons-codec",
+    "quarkusExtension" : false,
+    "verdict" : "used-bytecode",
+    "configInherited" : false,
+    "configRoots" : [ ],
+    "configMatchedKeys" : [ ],
+    "configSource" : [ ],
+    "inheritedRoots" : [ ],
+    "bytecodeReferenced" : true,
+    "capabilityEvidence" : [ ],
+    "note" : null,
+    "bytecodeViaTransitiveApi" : null,
+    "valueRuleEvidence" : null,
+    "sharedReferencedJars" : [ ]
+  }, {
+    "ga" : "commons-io:commons-io",
+    "quarkusExtension" : false,
+    "verdict" : "used-bytecode",
+    "configInherited" : false,
+    "configRoots" : [ ],
+    "configMatchedKeys" : [ ],
+    "configSource" : [ ],
+    "inheritedRoots" : [ ],
+    "bytecodeReferenced" : true,
+    "capabilityEvidence" : [ ],
+    "note" : null,
+    "bytecodeViaTransitiveApi" : null,
+    "valueRuleEvidence" : null,
+    "sharedReferencedJars" : [ ]
+  }, {
+    "ga" : "io.apicurio:apicurio-registry-common",
+    "quarkusExtension" : false,
+    "verdict" : "used-bytecode",
+    "configInherited" : false,
+    "configRoots" : [ ],
+    "configMatchedKeys" : [ ],
+    "configSource" : [ ],
+    "inheritedRoots" : [ ],
+    "bytecodeReferenced" : true,
+    "capabilityEvidence" : [ ],
+    "note" : null,
+    "bytecodeViaTransitiveApi" : null,
+    "valueRuleEvidence" : null,
+    "sharedReferencedJars" : [ ]
+  }, {
+    "ga" : "io.apicurio:apicurio-registry-config-definitions",
+    "quarkusExtension" : false,
+    "verdict" : "used-bytecode",
+    "configInherited" : false,
+    "configRoots" : [ ],
+    "configMatchedKeys" : [ ],
+    "configSource" : [ ],
+    "inheritedRoots" : [ ],
+    "bytecodeReferenced" : true,
+    "capabilityEvidence" : [ ],
+    "note" : null,
+    "bytecodeViaTransitiveApi" : null,
+    "valueRuleEvidence" : null,
+    "sharedReferencedJars" : [ ]
+  }, {
+    "ga" : "io.apicurio:apicurio-registry-config-index",
+    "quarkusExtension" : true,
+    "verdict" : "suspect",
+    "configInherited" : false,
+    "configRoots" : [ ],
+    "configMatchedKeys" : [ ],
+    "configSource" : [ ],
+    "inheritedRoots" : [ ],
+    "bytecodeReferenced" : false,
+    "capabilityEvidence" : [ ],
+    "note" : "no config-root metadata found in the runtime or deployment jar",
+    "bytecodeViaTransitiveApi" : null,
+    "valueRuleEvidence" : null,
+    "sharedReferencedJars" : [ ]
+  }, {
+    "ga" : "io.apicurio:apicurio-registry-contracts-rules",
+    "quarkusExtension" : false,
+    "verdict" : "used-bytecode",
+    "configInherited" : false,
+    "configRoots" : [ ],
+    "configMatchedKeys" : [ ],
+    "configSource" : [ ],
+    "inheritedRoots" : [ ],
+    "bytecodeReferenced" : true,
+    "capabilityEvidence" : [ ],
+    "note" : null,
+    "bytecodeViaTransitiveApi" : null,
+    "valueRuleEvidence" : null,
+    "sharedReferencedJars" : [ ]
+  }, {
+    "ga" : "io.apicurio:apicurio-registry-protobuf-schema-utilities",
+    "quarkusExtension" : false,
+    "verdict" : "used-bytecode",
+    "configInherited" : false,
+    "configRoots" : [ ],
+    "configMatchedKeys" : [ ],
+    "configSource" : [ ],
+    "inheritedRoots" : [ ],
+    "bytecodeReferenced" : true,
+    "capabilityEvidence" : [ ],
+    "note" : null,
+    "bytecodeViaTransitiveApi" : null,
+    "valueRuleEvidence" : null,
+    "sharedReferencedJars" : [ ]
+  }, {
+    "ga" : "io.apicurio:apicurio-registry-schema-util-avro",
+    "quarkusExtension" : false,
+    "verdict" : "used-bytecode",
+    "configInherited" : false,
+    "configRoots" : [ ],
+    "configMatchedKeys" : [ ],
+    "configSource" : [ ],
+    "inheritedRoots" : [ ],
+    "bytecodeReferenced" : true,
+    "capabilityEvidence" : [ ],
+    "note" : null,
+    "bytecodeViaTransitiveApi" : null,
+    "valueRuleEvidence" : null,
+    "sharedReferencedJars" : [ ]
+  }, {
+    "ga" : "io.apicurio:apicurio-registry-schema-util-common",
+    "quarkusExtension" : false,
+    "verdict" : "used-bytecode",
+    "configInherited" : false,
+    "configRoots" : [ ],
+    "configMatchedKeys" : [ ],
+    "configSource" : [ ],
+    "inheritedRoots" : [ ],
+    "bytecodeReferenced" : true,
+    "capabilityEvidence" : [ ],
+    "note" : null,
+    "bytecodeViaTransitiveApi" : null,
+    "valueRuleEvidence" : null,
+    "sharedReferencedJars" : [ ]
+  }, {
+    "ga" : "io.apicurio:apicurio-registry-schema-util-json",
+    "quarkusExtension" : false,
+    "verdict" : "used-bytecode",
+    "configInherited" : false,
+    "configRoots" : [ ],
+    "configMatchedKeys" : [ ],
+    "configSource" : [ ],
+    "inheritedRoots" : [ ],
+    "bytecodeReferenced" : true,
+    "capabilityEvidence" : [ ],
+    "note" : null,
+    "bytecodeViaTransitiveApi" : null,
+    "valueRuleEvidence" : null,
+    "sharedReferencedJars" : [ ]
+  }, {
+    "ga" : "io.apicurio:apicurio-registry-schema-util-protobuf",
+    "quarkusExtension" : false,
+    "verdict" : "used-bytecode",
+    "configInherited" : false,
+    "configRoots" : [ ],
+    "configMatchedKeys" : [ ],
+    "configSource" : [ ],
+    "inheritedRoots" : [ ],
+    "bytecodeReferenced" : true,
+    "capabilityEvidence" : [ ],
+    "note" : null,
+    "bytecodeViaTransitiveApi" : null,
+    "valueRuleEvidence" : null,
+    "sharedReferencedJars" : [ ]
+  }, {
+    "ga" : "io.apicurio:apicurio-registry-schema-util-provider",
+    "quarkusExtension" : false,
+    "verdict" : "used-bytecode",
+    "configInherited" : false,
+    "configRoots" : [ ],
+    "configMatchedKeys" : [ ],
+    "configSource" : [ ],
+    "inheritedRoots" : [ ],
+    "bytecodeReferenced" : true,
+    "capabilityEvidence" : [ ],
+    "note" : null,
+    "bytecodeViaTransitiveApi" : null,
+    "valueRuleEvidence" : null,
+    "sharedReferencedJars" : [ ]
+  }, {
+    "ga" : "io.apicurio:apicurio-registry-utils-import-export",
+    "quarkusExtension" : false,
+    "verdict" : "used-bytecode",
+    "configInherited" : false,
+    "configRoots" : [ ],
+    "configMatchedKeys" : [ ],
+    "configSource" : [ ],
+    "inheritedRoots" : [ ],
+    "bytecodeReferenced" : true,
+    "capabilityEvidence" : [ ],
+    "note" : null,
+    "bytecodeViaTransitiveApi" : null,
+    "valueRuleEvidence" : null,
+    "sharedReferencedJars" : [ ]
+  }, {
+    "ga" : "io.quarkus:quarkus-agroal",
+    "quarkusExtension" : true,
+    "verdict" : "used-bytecode",
+    "configInherited" : false,
+    "configRoots" : [ ],
+    "configMatchedKeys" : [ ],
+    "configSource" : [ ],
+    "inheritedRoots" : [ ],
+    "bytecodeReferenced" : true,
+    "capabilityEvidence" : [ ],
+    "note" : null,
+    "bytecodeViaTransitiveApi" : "io.agroal:agroal-api",
+    "valueRuleEvidence" : null,
+    "sharedReferencedJars" : [ ]
+  }, {
+    "ga" : "io.quarkus:quarkus-elasticsearch-java-client",
+    "quarkusExtension" : true,
+    "verdict" : "used-bytecode",
+    "configInherited" : false,
+    "configRoots" : [ ],
+    "configMatchedKeys" : [ ],
+    "configSource" : [ ],
+    "inheritedRoots" : [ ],
+    "bytecodeReferenced" : true,
+    "capabilityEvidence" : [ ],
+    "note" : null,
+    "bytecodeViaTransitiveApi" : "co.elastic.clients:elasticsearch-java",
+    "valueRuleEvidence" : null,
+    "sharedReferencedJars" : [ ]
+  }, {
+    "ga" : "io.quarkus:quarkus-elytron-security-properties-file",
+    "quarkusExtension" : true,
+    "verdict" : "used-config",
+    "configInherited" : false,
+    "configRoots" : [ "quarkus.security.users.", "quarkus.security.users.embedded." ],
+    "configMatchedKeys" : [ "quarkus.security.users.embedded.enabled" ],
+    "configSource" : [ "extension-yaml", "config-model-json", "annotations" ],
+    "inheritedRoots" : [ ],
+    "bytecodeReferenced" : false,
+    "capabilityEvidence" : [ ],
+    "note" : null,
+    "bytecodeViaTransitiveApi" : null,
+    "valueRuleEvidence" : null,
+    "sharedReferencedJars" : [ ]
+  }, {
+    "ga" : "io.quarkus:quarkus-jackson",
+    "quarkusExtension" : true,
+    "verdict" : "used-bytecode",
+    "configInherited" : false,
+    "configRoots" : [ ],
+    "configMatchedKeys" : [ ],
+    "configSource" : [ ],
+    "inheritedRoots" : [ ],
+    "bytecodeReferenced" : true,
+    "capabilityEvidence" : [ ],
+    "note" : null,
+    "bytecodeViaTransitiveApi" : null,
+    "valueRuleEvidence" : null,
+    "sharedReferencedJars" : [ ]
+  }, {
+    "ga" : "io.quarkus:quarkus-jdbc-h2",
+    "quarkusExtension" : true,
+    "verdict" : "used-config",
+    "configInherited" : false,
+    "configRoots" : [ ],
+    "configMatchedKeys" : [ "quarkus.datasource.h2.db-kind" ],
+    "configSource" : [ "value-rule" ],
+    "inheritedRoots" : [ ],
+    "bytecodeReferenced" : false,
+    "capabilityEvidence" : [ ],
+    "note" : null,
+    "bytecodeViaTransitiveApi" : null,
+    "valueRuleEvidence" : "selected by quarkus.datasource.h2.db-kind=h2",
+    "sharedReferencedJars" : [ ]
+  }, {
+    "ga" : "io.quarkus:quarkus-jdbc-mssql",
+    "quarkusExtension" : true,
+    "verdict" : "used-config",
+    "configInherited" : false,
+    "configRoots" : [ ],
+    "configMatchedKeys" : [ "quarkus.datasource.mssql.db-kind" ],
+    "configSource" : [ "value-rule" ],
+    "inheritedRoots" : [ ],
+    "bytecodeReferenced" : false,
+    "capabilityEvidence" : [ ],
+    "note" : null,
+    "bytecodeViaTransitiveApi" : null,
+    "valueRuleEvidence" : "selected by quarkus.datasource.mssql.db-kind=mssql",
+    "sharedReferencedJars" : [ ]
+  }, {
+    "ga" : "io.quarkus:quarkus-jdbc-mysql",
+    "quarkusExtension" : true,
+    "verdict" : "used-config",
+    "configInherited" : false,
+    "configRoots" : [ ],
+    "configMatchedKeys" : [ "quarkus.datasource.mysql.db-kind" ],
+    "configSource" : [ "value-rule" ],
+    "inheritedRoots" : [ ],
+    "bytecodeReferenced" : false,
+    "capabilityEvidence" : [ ],
+    "note" : null,
+    "bytecodeViaTransitiveApi" : null,
+    "valueRuleEvidence" : "selected by quarkus.datasource.mysql.db-kind=mysql",
+    "sharedReferencedJars" : [ ]
+  }, {
+    "ga" : "io.quarkus:quarkus-jdbc-postgresql",
+    "quarkusExtension" : true,
+    "verdict" : "used-config",
+    "configInherited" : false,
+    "configRoots" : [ ],
+    "configMatchedKeys" : [ "quarkus.datasource.postgresql.db-kind" ],
+    "configSource" : [ "value-rule" ],
+    "inheritedRoots" : [ ],
+    "bytecodeReferenced" : false,
+    "capabilityEvidence" : [ ],
+    "note" : null,
+    "bytecodeViaTransitiveApi" : null,
+    "valueRuleEvidence" : "selected by quarkus.datasource.postgresql.db-kind=postgresql",
+    "sharedReferencedJars" : [ ]
+  }, {
+    "ga" : "io.quarkus:quarkus-kubernetes-client",
+    "quarkusExtension" : true,
+    "verdict" : "used-bytecode",
+    "configInherited" : false,
+    "configRoots" : [ ],
+    "configMatchedKeys" : [ ],
+    "configSource" : [ ],
+    "inheritedRoots" : [ ],
+    "bytecodeReferenced" : true,
+    "capabilityEvidence" : [ ],
+    "note" : null,
+    "bytecodeViaTransitiveApi" : "io.fabric8:kubernetes-client-api",
+    "valueRuleEvidence" : null,
+    "sharedReferencedJars" : [ ]
+  }, {
+    "ga" : "io.quarkus:quarkus-logging-json",
+    "quarkusExtension" : true,
+    "verdict" : "used-config",
+    "configInherited" : false,
+    "configRoots" : [ "quarkus.log.", "quarkus.log.console.json." ],
+    "configMatchedKeys" : [ "quarkus.log.category.\"io.apicurio\".level", "quarkus.log.category.\"io.quarkus.http.access-log\".level", "quarkus.log.category.\"io.quarkus.oidc.runtime.OidcProvider\".level", "quarkus.log.console.color", "quarkus.log.console.enabled", "quarkus.log.console.format", "quarkus.log.console.json", "quarkus.log.level", "quarkus.log.min-level" ],
+    "configSource" : [ "extension-yaml", "config-model-json", "annotations" ],
+    "inheritedRoots" : [ ],
+    "bytecodeReferenced" : false,
+    "capabilityEvidence" : [ ],
+    "note" : null,
+    "bytecodeViaTransitiveApi" : null,
+    "valueRuleEvidence" : null,
+    "sharedReferencedJars" : [ ]
+  }, {
+    "ga" : "io.quarkus:quarkus-micrometer-registry-prometheus",
+    "quarkusExtension" : true,
+    "verdict" : "used-config",
+    "configInherited" : false,
+    "configRoots" : [ "quarkus.micrometer." ],
+    "configMatchedKeys" : [ "quarkus.micrometer.enabled" ],
+    "configSource" : [ "extension-yaml" ],
+    "inheritedRoots" : [ ],
+    "bytecodeReferenced" : false,
+    "capabilityEvidence" : [ ],
+    "note" : null,
+    "bytecodeViaTransitiveApi" : null,
+    "valueRuleEvidence" : null,
+    "sharedReferencedJars" : [ ]
+  }, {
+    "ga" : "io.quarkus:quarkus-oidc",
+    "quarkusExtension" : true,
+    "verdict" : "used-bytecode",
+    "configInherited" : false,
+    "configRoots" : [ ],
+    "configMatchedKeys" : [ ],
+    "configSource" : [ ],
+    "inheritedRoots" : [ ],
+    "bytecodeReferenced" : true,
+    "capabilityEvidence" : [ ],
+    "note" : null,
+    "bytecodeViaTransitiveApi" : null,
+    "valueRuleEvidence" : null,
+    "sharedReferencedJars" : [ ]
+  }, {
+    "ga" : "io.quarkus:quarkus-opentelemetry",
+    "quarkusExtension" : true,
+    "verdict" : "used-bytecode",
+    "configInherited" : false,
+    "configRoots" : [ ],
+    "configMatchedKeys" : [ ],
+    "configSource" : [ ],
+    "inheritedRoots" : [ ],
+    "bytecodeReferenced" : true,
+    "capabilityEvidence" : [ ],
+    "note" : null,
+    "bytecodeViaTransitiveApi" : "io.opentelemetry:opentelemetry-sdk-metrics",
+    "valueRuleEvidence" : null,
+    "sharedReferencedJars" : [ ]
+  }, {
+    "ga" : "io.quarkus:quarkus-resteasy-client",
+    "quarkusExtension" : true,
+    "verdict" : "used-capability",
+    "configInherited" : false,
+    "configRoots" : [ ],
+    "configMatchedKeys" : [ ],
+    "configSource" : [ ],
+    "inheritedRoots" : [ ],
+    "bytecodeReferenced" : false,
+    "capabilityEvidence" : [ "used because io.quarkus:quarkus-micrometer depends on it (direct extension dependency)" ],
+    "note" : null,
+    "bytecodeViaTransitiveApi" : null,
+    "valueRuleEvidence" : null,
+    "sharedReferencedJars" : [ ]
+  }, {
+    "ga" : "io.quarkus:quarkus-resteasy-client-jackson",
+    "quarkusExtension" : true,
+    "verdict" : "suspect",
+    "configInherited" : false,
+    "configRoots" : [ ],
+    "configMatchedKeys" : [ ],
+    "configSource" : [ ],
+    "inheritedRoots" : [ ],
+    "bytecodeReferenced" : false,
+    "capabilityEvidence" : [ ],
+    "note" : "no config-root metadata found in the runtime or deployment jar",
+    "bytecodeViaTransitiveApi" : null,
+    "valueRuleEvidence" : null,
+    "sharedReferencedJars" : [ {
+      "ga" : "jakarta.servlet:jakarta.servlet-api",
+      "alsoReachableFrom" : [ "io.quarkus:quarkus-elytron-security-properties-file", "io.quarkus:quarkus-micrometer-registry-prometheus", "io.quarkus:quarkus-oidc", "io.quarkus:quarkus-resteasy-client", "io.quarkus:quarkus-resteasy-jackson", "io.quarkus:quarkus-smallrye-fault-tolerance", "io.quarkus:quarkus-smallrye-jwt", "io.quarkus:quarkus-undertow" ]
+    }, {
+      "ga" : "jakarta.validation:jakarta.validation-api",
+      "alsoReachableFrom" : [ "io.quarkus:quarkus-micrometer-registry-prometheus", "io.quarkus:quarkus-resteasy-client", "io.quarkus:quarkus-resteasy-jackson" ]
+    }, {
+      "ga" : "jakarta.ws.rs:jakarta.ws.rs-api",
+      "alsoReachableFrom" : [ "io.quarkus:quarkus-micrometer-registry-prometheus", "io.quarkus:quarkus-opentelemetry", "io.quarkus:quarkus-resteasy-client", "io.quarkus:quarkus-resteasy-jackson" ]
+    } ]
+  }, {
+    "ga" : "io.quarkus:quarkus-resteasy-jackson",
+    "quarkusExtension" : true,
+    "verdict" : "suspect",
+    "configInherited" : false,
+    "configRoots" : [ "quarkus.jackson.", "quarkus.resteasy." ],
+    "configMatchedKeys" : [ ],
+    "configSource" : [ "extension-yaml" ],
+    "inheritedRoots" : [ ],
+    "bytecodeReferenced" : false,
+    "capabilityEvidence" : [ ],
+    "note" : "config roots known, but no application key falls under them",
+    "bytecodeViaTransitiveApi" : null,
+    "valueRuleEvidence" : null,
+    "sharedReferencedJars" : [ {
+      "ga" : "io.quarkus.security:quarkus-security",
+      "alsoReachableFrom" : [ "io.quarkus:quarkus-elytron-security-properties-file", "io.quarkus:quarkus-micrometer-registry-prometheus", "io.quarkus:quarkus-oidc", "io.quarkus:quarkus-opentelemetry", "io.quarkus:quarkus-scheduler", "io.quarkus:quarkus-smallrye-health", "io.quarkus:quarkus-smallrye-jwt", "io.quarkus:quarkus-undertow", "io.quarkus:quarkus-vertx" ]
+    }, {
+      "ga" : "io.vertx:vertx-auth-common",
+      "alsoReachableFrom" : [ "io.quarkus:quarkus-agroal", "io.quarkus:quarkus-elytron-security-properties-file", "io.quarkus:quarkus-kubernetes-client", "io.quarkus:quarkus-micrometer-registry-prometheus", "io.quarkus:quarkus-oidc", "io.quarkus:quarkus-opentelemetry", "io.quarkus:quarkus-scheduler", "io.quarkus:quarkus-smallrye-health", "io.quarkus:quarkus-smallrye-jwt", "io.quarkus:quarkus-undertow" ]
+    }, {
+      "ga" : "io.vertx:vertx-web",
+      "alsoReachableFrom" : [ "io.quarkus:quarkus-agroal", "io.quarkus:quarkus-elytron-security-properties-file", "io.quarkus:quarkus-kubernetes-client", "io.quarkus:quarkus-micrometer-registry-prometheus", "io.quarkus:quarkus-oidc", "io.quarkus:quarkus-opentelemetry", "io.quarkus:quarkus-scheduler", "io.quarkus:quarkus-smallrye-health", "io.quarkus:quarkus-smallrye-jwt", "io.quarkus:quarkus-undertow" ]
+    }, {
+      "ga" : "jakarta.servlet:jakarta.servlet-api",
+      "alsoReachableFrom" : [ "io.quarkus:quarkus-elytron-security-properties-file", "io.quarkus:quarkus-micrometer-registry-prometheus", "io.quarkus:quarkus-oidc", "io.quarkus:quarkus-resteasy-client", "io.quarkus:quarkus-resteasy-client-jackson", "io.quarkus:quarkus-smallrye-fault-tolerance", "io.quarkus:quarkus-smallrye-jwt", "io.quarkus:quarkus-undertow" ]
+    }, {
+      "ga" : "jakarta.validation:jakarta.validation-api",
+      "alsoReachableFrom" : [ "io.quarkus:quarkus-micrometer-registry-prometheus", "io.quarkus:quarkus-resteasy-client", "io.quarkus:quarkus-resteasy-client-jackson" ]
+    }, {
+      "ga" : "jakarta.ws.rs:jakarta.ws.rs-api",
+      "alsoReachableFrom" : [ "io.quarkus:quarkus-micrometer-registry-prometheus", "io.quarkus:quarkus-opentelemetry", "io.quarkus:quarkus-resteasy-client", "io.quarkus:quarkus-resteasy-client-jackson" ]
+    } ]
+  }, {
+    "ga" : "io.quarkus:quarkus-scheduler",
+    "quarkusExtension" : true,
+    "verdict" : "suspect",
+    "configInherited" : false,
+    "configRoots" : [ "quarkus.scheduler." ],
+    "configMatchedKeys" : [ ],
+    "configSource" : [ "extension-yaml", "config-model-json", "annotations" ],
+    "inheritedRoots" : [ ],
+    "bytecodeReferenced" : false,
+    "capabilityEvidence" : [ ],
+    "note" : "config roots known, but no application key falls under them",
+    "bytecodeViaTransitiveApi" : null,
+    "valueRuleEvidence" : null,
+    "sharedReferencedJars" : [ {
+      "ga" : "io.opentelemetry:opentelemetry-api",
+      "alsoReachableFrom" : [ "io.quarkus:quarkus-agroal", "io.quarkus:quarkus-elasticsearch-java-client", "io.quarkus:quarkus-micrometer-registry-prometheus", "io.quarkus:quarkus-opentelemetry", "io.quarkus:quarkus-smallrye-fault-tolerance" ]
+    }, {
+      "ga" : "io.quarkus.security:quarkus-security",
+      "alsoReachableFrom" : [ "io.quarkus:quarkus-elytron-security-properties-file", "io.quarkus:quarkus-micrometer-registry-prometheus", "io.quarkus:quarkus-oidc", "io.quarkus:quarkus-opentelemetry", "io.quarkus:quarkus-resteasy-jackson", "io.quarkus:quarkus-smallrye-health", "io.quarkus:quarkus-smallrye-jwt", "io.quarkus:quarkus-undertow", "io.quarkus:quarkus-vertx" ]
+    }, {
+      "ga" : "io.quarkus:quarkus-scheduler-api",
+      "alsoReachableFrom" : [ "io.quarkus:quarkus-opentelemetry" ]
+    }, {
+      "ga" : "io.vertx:vertx-auth-common",
+      "alsoReachableFrom" : [ "io.quarkus:quarkus-agroal", "io.quarkus:quarkus-elytron-security-properties-file", "io.quarkus:quarkus-kubernetes-client", "io.quarkus:quarkus-micrometer-registry-prometheus", "io.quarkus:quarkus-oidc", "io.quarkus:quarkus-opentelemetry", "io.quarkus:quarkus-resteasy-jackson", "io.quarkus:quarkus-smallrye-health", "io.quarkus:quarkus-smallrye-jwt", "io.quarkus:quarkus-undertow" ]
+    }, {
+      "ga" : "io.vertx:vertx-web",
+      "alsoReachableFrom" : [ "io.quarkus:quarkus-agroal", "io.quarkus:quarkus-elytron-security-properties-file", "io.quarkus:quarkus-kubernetes-client", "io.quarkus:quarkus-micrometer-registry-prometheus", "io.quarkus:quarkus-oidc", "io.quarkus:quarkus-opentelemetry", "io.quarkus:quarkus-resteasy-jackson", "io.quarkus:quarkus-smallrye-health", "io.quarkus:quarkus-smallrye-jwt", "io.quarkus:quarkus-undertow" ]
+    } ]
+  }, {
+    "ga" : "io.quarkus:quarkus-smallrye-context-propagation",
+    "quarkusExtension" : true,
+    "verdict" : "used-capability",
+    "configInherited" : false,
+    "configRoots" : [ ],
+    "configMatchedKeys" : [ ],
+    "configSource" : [ ],
+    "inheritedRoots" : [ ],
+    "bytecodeReferenced" : false,
+    "capabilityEvidence" : [ "used because io.quarkus:quarkus-elytron-security depends on it (direct extension dependency)" ],
+    "note" : null,
+    "bytecodeViaTransitiveApi" : null,
+    "valueRuleEvidence" : null,
+    "sharedReferencedJars" : [ ]
+  }, {
+    "ga" : "io.quarkus:quarkus-smallrye-fault-tolerance",
+    "quarkusExtension" : true,
+    "verdict" : "used-bytecode",
+    "configInherited" : false,
+    "configRoots" : [ ],
+    "configMatchedKeys" : [ ],
+    "configSource" : [ ],
+    "inheritedRoots" : [ ],
+    "bytecodeReferenced" : true,
+    "capabilityEvidence" : [ ],
+    "note" : null,
+    "bytecodeViaTransitiveApi" : "io.smallrye:smallrye-fault-tolerance-api",
+    "valueRuleEvidence" : null,
+    "sharedReferencedJars" : [ ]
+  }, {
+    "ga" : "io.quarkus:quarkus-smallrye-health",
+    "quarkusExtension" : true,
+    "verdict" : "used-capability",
+    "configInherited" : false,
+    "configRoots" : [ ],
+    "configMatchedKeys" : [ ],
+    "configSource" : [ ],
+    "inheritedRoots" : [ ],
+    "bytecodeReferenced" : false,
+    "capabilityEvidence" : [ "used because io.quarkus:quarkus-elasticsearch-rest-client depends on it (direct extension dependency)" ],
+    "note" : null,
+    "bytecodeViaTransitiveApi" : null,
+    "valueRuleEvidence" : null,
+    "sharedReferencedJars" : [ ]
+  }, {
+    "ga" : "io.quarkus:quarkus-smallrye-jwt",
+    "quarkusExtension" : true,
+    "verdict" : "suspect",
+    "configInherited" : false,
+    "configRoots" : [ "mp.jwt.", "quarkus.smallrye-jwt.", "smallrye.jwt." ],
+    "configMatchedKeys" : [ ],
+    "configSource" : [ "extension-yaml", "config-model-json", "annotations" ],
+    "inheritedRoots" : [ ],
+    "bytecodeReferenced" : false,
+    "capabilityEvidence" : [ ],
+    "note" : "config roots known, but no application key falls under them",
+    "bytecodeViaTransitiveApi" : null,
+    "valueRuleEvidence" : null,
+    "sharedReferencedJars" : [ {
+      "ga" : "io.quarkus.security:quarkus-security",
+      "alsoReachableFrom" : [ "io.quarkus:quarkus-elytron-security-properties-file", "io.quarkus:quarkus-micrometer-registry-prometheus", "io.quarkus:quarkus-oidc", "io.quarkus:quarkus-opentelemetry", "io.quarkus:quarkus-resteasy-jackson", "io.quarkus:quarkus-scheduler", "io.quarkus:quarkus-smallrye-health", "io.quarkus:quarkus-undertow", "io.quarkus:quarkus-vertx" ]
+    }, {
+      "ga" : "io.smallrye:smallrye-jwt",
+      "alsoReachableFrom" : [ "io.quarkus:quarkus-oidc" ]
+    }, {
+      "ga" : "io.vertx:vertx-auth-common",
+      "alsoReachableFrom" : [ "io.quarkus:quarkus-agroal", "io.quarkus:quarkus-elytron-security-properties-file", "io.quarkus:quarkus-kubernetes-client", "io.quarkus:quarkus-micrometer-registry-prometheus", "io.quarkus:quarkus-oidc", "io.quarkus:quarkus-opentelemetry", "io.quarkus:quarkus-resteasy-jackson", "io.quarkus:quarkus-scheduler", "io.quarkus:quarkus-smallrye-health", "io.quarkus:quarkus-undertow" ]
+    }, {
+      "ga" : "io.vertx:vertx-web",
+      "alsoReachableFrom" : [ "io.quarkus:quarkus-agroal", "io.quarkus:quarkus-elytron-security-properties-file", "io.quarkus:quarkus-kubernetes-client", "io.quarkus:quarkus-micrometer-registry-prometheus", "io.quarkus:quarkus-oidc", "io.quarkus:quarkus-opentelemetry", "io.quarkus:quarkus-resteasy-jackson", "io.quarkus:quarkus-scheduler", "io.quarkus:quarkus-smallrye-health", "io.quarkus:quarkus-undertow" ]
+    }, {
+      "ga" : "jakarta.servlet:jakarta.servlet-api",
+      "alsoReachableFrom" : [ "io.quarkus:quarkus-elytron-security-properties-file", "io.quarkus:quarkus-micrometer-registry-prometheus", "io.quarkus:quarkus-oidc", "io.quarkus:quarkus-resteasy-client", "io.quarkus:quarkus-resteasy-client-jackson", "io.quarkus:quarkus-resteasy-jackson", "io.quarkus:quarkus-smallrye-fault-tolerance", "io.quarkus:quarkus-undertow" ]
+    } ]
+  }, {
+    "ga" : "io.quarkus:quarkus-undertow",
+    "quarkusExtension" : true,
+    "verdict" : "used-capability",
+    "configInherited" : false,
+    "configRoots" : [ ],
+    "configMatchedKeys" : [ ],
+    "configSource" : [ ],
+    "inheritedRoots" : [ ],
+    "bytecodeReferenced" : false,
+    "capabilityEvidence" : [ "used because io.quarkus:quarkus-micrometer depends on it (direct extension dependency)" ],
+    "note" : null,
+    "bytecodeViaTransitiveApi" : null,
+    "valueRuleEvidence" : null,
+    "sharedReferencedJars" : [ ]
+  }, {
+    "ga" : "io.quarkus:quarkus-vertx",
+    "quarkusExtension" : true,
+    "verdict" : "used-capability",
+    "configInherited" : false,
+    "configRoots" : [ ],
+    "configMatchedKeys" : [ ],
+    "configSource" : [ ],
+    "inheritedRoots" : [ ],
+    "bytecodeReferenced" : false,
+    "capabilityEvidence" : [ "used because io.quarkus:quarkus-elytron-security depends on it (direct extension dependency)" ],
+    "note" : null,
+    "bytecodeViaTransitiveApi" : null,
+    "valueRuleEvidence" : null,
+    "sharedReferencedJars" : [ ]
+  }, {
+    "ga" : "io.strimzi:kafka-oauth-client",
+    "quarkusExtension" : false,
+    "verdict" : "suspect",
+    "configInherited" : false,
+    "configRoots" : [ ],
+    "configMatchedKeys" : [ ],
+    "configSource" : [ ],
+    "inheritedRoots" : [ ],
+    "bytecodeReferenced" : false,
+    "capabilityEvidence" : [ ],
+    "note" : "plain jar: no reference found in compiled classes (bytecode signal only)",
+    "bytecodeViaTransitiveApi" : null,
+    "valueRuleEvidence" : null,
+    "sharedReferencedJars" : [ ]
+  }, {
+    "ga" : "org.apache.commons:commons-lang3",
+    "quarkusExtension" : false,
+    "verdict" : "used-bytecode",
+    "configInherited" : false,
+    "configRoots" : [ ],
+    "configMatchedKeys" : [ ],
+    "configSource" : [ ],
+    "inheritedRoots" : [ ],
+    "bytecodeReferenced" : true,
+    "capabilityEvidence" : [ ],
+    "note" : null,
+    "bytecodeViaTransitiveApi" : null,
+    "valueRuleEvidence" : null,
+    "sharedReferencedJars" : [ ]
+  }, {
+    "ga" : "org.eclipse.jgit:org.eclipse.jgit",
+    "quarkusExtension" : false,
+    "verdict" : "used-bytecode",
+    "configInherited" : false,
+    "configRoots" : [ ],
+    "configMatchedKeys" : [ ],
+    "configSource" : [ ],
+    "inheritedRoots" : [ ],
+    "bytecodeReferenced" : true,
+    "capabilityEvidence" : [ ],
+    "note" : null,
+    "bytecodeViaTransitiveApi" : null,
+    "valueRuleEvidence" : null,
+    "sharedReferencedJars" : [ ]
+  }, {
+    "ga" : "org.semver4j:semver4j",
+    "quarkusExtension" : false,
+    "verdict" : "used-bytecode",
+    "configInherited" : false,
+    "configRoots" : [ ],
+    "configMatchedKeys" : [ ],
+    "configSource" : [ ],
+    "inheritedRoots" : [ ],
+    "bytecodeReferenced" : true,
+    "capabilityEvidence" : [ ],
+    "note" : null,
+    "bytecodeViaTransitiveApi" : null,
+    "valueRuleEvidence" : null,
+    "sharedReferencedJars" : [ ]
+  }, {
+    "ga" : "org.yaml:snakeyaml",
+    "quarkusExtension" : false,
+    "verdict" : "suspect",
+    "configInherited" : false,
+    "configRoots" : [ ],
+    "configMatchedKeys" : [ ],
+    "configSource" : [ ],
+    "inheritedRoots" : [ ],
+    "bytecodeReferenced" : false,
+    "capabilityEvidence" : [ ],
+    "note" : "plain jar: no reference found in compiled classes (bytecode signal only)",
+    "bytecodeViaTransitiveApi" : null,
+    "valueRuleEvidence" : null,
+    "sharedReferencedJars" : [ ]
+  } ],
+  "ignoreRecommendations" : [ {
+    "ga" : "io.quarkus:quarkus-elytron-security-properties-file",
+    "verdict" : "used-config",
+    "reason" : "used via an application configuration key under this extension's own config root (quarkus.security.users., quarkus.security.users.embedded.)"
+  }, {
+    "ga" : "io.quarkus:quarkus-jdbc-h2",
+    "verdict" : "used-config",
+    "reason" : "used via an application configuration key under this extension's own config root"
+  }, {
+    "ga" : "io.quarkus:quarkus-jdbc-mssql",
+    "verdict" : "used-config",
+    "reason" : "used via an application configuration key under this extension's own config root"
+  }, {
+    "ga" : "io.quarkus:quarkus-jdbc-mysql",
+    "verdict" : "used-config",
+    "reason" : "used via an application configuration key under this extension's own config root"
+  }, {
+    "ga" : "io.quarkus:quarkus-jdbc-postgresql",
+    "verdict" : "used-config",
+    "reason" : "used via an application configuration key under this extension's own config root"
+  }, {
+    "ga" : "io.quarkus:quarkus-logging-json",
+    "verdict" : "used-config",
+    "reason" : "used via an application configuration key under this extension's own config root (quarkus.log., quarkus.log.console.json.)"
+  }, {
+    "ga" : "io.quarkus:quarkus-micrometer-registry-prometheus",
+    "verdict" : "used-config",
+    "reason" : "used via an application configuration key under this extension's own config root (quarkus.micrometer.)"
+  }, {
+    "ga" : "io.quarkus:quarkus-resteasy-client",
+    "verdict" : "used-capability",
+    "reason" : "used because io.quarkus:quarkus-micrometer depends on it (direct extension dependency)"
+  }, {
+    "ga" : "io.quarkus:quarkus-smallrye-context-propagation",
+    "verdict" : "used-capability",
+    "reason" : "used because io.quarkus:quarkus-elytron-security depends on it (direct extension dependency)"
+  }, {
+    "ga" : "io.quarkus:quarkus-smallrye-health",
+    "verdict" : "used-capability",
+    "reason" : "used because io.quarkus:quarkus-elasticsearch-rest-client depends on it (direct extension dependency)"
+  }, {
+    "ga" : "io.quarkus:quarkus-undertow",
+    "verdict" : "used-capability",
+    "reason" : "used because io.quarkus:quarkus-micrometer depends on it (direct extension dependency)"
+  }, {
+    "ga" : "io.quarkus:quarkus-vertx",
+    "verdict" : "used-capability",
+    "reason" : "used because io.quarkus:quarkus-elytron-security depends on it (direct extension dependency)"
+  } ],
+  "extensions" : {
+    "usedBytecode" : 7,
+    "usedConfig" : 7,
+    "usedCapability" : 5,
+    "suspect" : 5,
+    "total" : 24
+  },
+  "plainJars" : {
+    "usedBytecode" : 16,
+    "usedConfig" : 0,
+    "usedCapability" : 0,
+    "suspect" : 3,
+    "total" : 19
+  },
+  "summary" : {
+    "usedBytecode" : 23,
+    "usedConfig" : 7,
+    "usedCapability" : 5,
+    "suspect" : 8,
+    "total" : 43
+  }
+}
