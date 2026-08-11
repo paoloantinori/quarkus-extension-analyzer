@@ -26,7 +26,7 @@ Legend: FP = false positive (genuinely used, tool misses it). TP = true positive
 | `apicurio-registry-config-index` | none found in app source; internal Apicurio extension, no config roots probed | U | unknown; needs Apicurio-internal knowledge |
 | `quarkus-resteasy-client-jackson` | app uses REST client + Jackson; no direct producer reference | U/FP | shared jars (servlet/validation/ws.rs) |
 | `quarkus-resteasy-jackson` | app uses `ObjectMapper` (`com.fasterxml.jackson`) | FP | jackson-databind is UBIQUITOUS, filtered by the >50% rule, so the reference is invisible |
-| `quarkus-scheduler` | app uses `@Scheduled` (`io.quarkus.scheduler.Scheduled`) in `RegistryStorageConfigCache` | FP (ANOMALY) | see scheduler anomaly below |
+| `quarkus-scheduler` | app uses `@Scheduled` (`io.quarkus.scheduler.Scheduled`) in `RegistryStorageConfigCache` | FP | `io.quarkus.scheduler.Scheduled` lives in the SHARED `quarkus-scheduler-api` jar (not the extension's own runtime jar, which holds only `io/quarkus/scheduler/runtime/*`); shared-jar exclusion. Initially flagged as an anomaly, RESOLVED as not-a-bug (TASK-17 closed): an airtight re-check showed the earlier "in its own jar" claim was a grep artifact. Same root cause as hibernate-validator. |
 | `quarkus-smallrye-jwt` | app injects `JsonWebToken` in `AdminOverride` | FP | the JWT type lives in a shared jar; shared-jar exclusion |
 
 ### super-heroes `rest-fights` (3 suspects)
@@ -42,31 +42,35 @@ tool's real precision on suspects is roughly 50/50, worse than the bare
 suspect count implies. This is important, honest context for any release or
 promotion claim.
 
-## The scheduler anomaly (flagged for investigation)
+## The scheduler anomaly (RESOLVED, not a bug)
 
-`quarkus-scheduler` is suspect, yet:
-- Apicurio's `RegistryStorageConfigCache.class` references
-  `io/quarkus/scheduler/Scheduled` (confirmed by `javap`: the annotation and its
-  nested `Scheduled$ConcurrentExecution` are in the constant pool), and
-- `io.quarkus.scheduler.Scheduled` is physically present in
-  `quarkus-scheduler`'s own runtime jar (confirmed by `unzip -l`).
+`quarkus-scheduler` was initially flagged as a signal-2 anomaly because the app
+references `@Scheduled` and a loose `unzip` grep seemed to show the class in the
+extension's runtime jar. An airtight re-check corrected this:
 
-So signal-2's own-jar check (`probe.containedClasses` intersect
-`jandexReferenced`) SHOULD fire and mark it `used-bytecode`. It does not. This
-is either a real gap (the probe's containedClasses for the scheduler extension
-does not include `Scheduled`, or TASK-12's `ci.annotations()` does not surface
-it in `jandexReferenced`) or a subtlety not yet understood. It is distinct from
-the shared-jar trade-off and should be investigated. Filed as a backlog task.
+- Apicurio's `RegistryStorageConfigCache.class` does reference
+  `io/quarkus.scheduler.Scheduled` (confirmed by `javap`).
+- BUT `io.quarkus.scheduler.Scheduled` lives in `quarkus-scheduler-API`
+  (the SHARED jar), not in `quarkus-scheduler`'s own runtime jar, which holds
+  only `io/quarkus/scheduler/runtime/*` classes (confirmed by exact-class
+  `unzip -l` on both jars).
+- The earlier "in its own jar" reading was a grep artifact: the loose pattern
+  `Scheduled.class` also matched runtime classes like `SchedulerConfig.class`.
+
+So scheduler is the SAME shared-jar pattern as hibernate-validator, not a
+signal-2 bug. TASK-17 was closed as not-a-bug. This reinforces the triage's
+root-cause finding: every confirmed false positive traces to the
+shared/ubiquitous-jar attribution exclusion, which is the analyzer's deliberate
+safety property.
 
 ## TASK-8 verdict: re-frame and defer (do not build now)
 
 TASK-8's original hypothesis (map extension to produced bean types; mark used
 when project bytecode references those types) would resolve only the
 producer-pattern FPs (hibernate-validator, smallrye-jwt), by deliberately
-overriding the shared-jar exclusion for KNOWN producers. It would NOT resolve:
-- ubiquitous-jar FPs (resteasy-jackson),
-- the scheduler anomaly (needs the bug fix, not a new signal),
-- runtime-only/annotation-driven extensions (info, otel).
+overriding the shared-jar exclusion for KNOWN producers. It would NOT resolve
+the ubiquitous-jar FPs (resteasy-jackson) or the runtime-only/annotation-driven
+extensions (info, otel).
 
 So TASK-8's hit rate is low and it deliberately weakens the shared-jar safety
 property. The bench triage suggests a BROADER re-frame: a curated "annotation
@@ -79,6 +83,4 @@ Decision for this autonomous run: do NOT implement TASK-8 or its re-frame. Both
 require a curated table whose design (which types map to which extension,
 validated against real Quarkus) and its deliberate weakening of the shared-jar
 invariant are judgment calls the user should make. TASK-8 is updated to
-deferred-with-evidence, with the re-frame recorded. The actionable next step the
-triage surfaces is the scheduler anomaly investigation, which is a possible bug
-fix (no safety-property trade-off) and thus higher-leverage.
+deferred-with-evidence, with the re-frame recorded.

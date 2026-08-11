@@ -1,9 +1,12 @@
 ---
 id: TASK-17
-title: 'Signal-2 anomaly: quarkus-scheduler @Scheduled referenced and in its own jar, but not credited'
-status: To Do
+title: >-
+  Signal-2 anomaly: quarkus-scheduler @Scheduled referenced and in its own jar,
+  but not credited
+status: Done
 assignee: []
 created_date: '2026-08-11'
+updated_date: '2026-08-11 15:37'
 labels: []
 dependencies: []
 references:
@@ -17,6 +20,7 @@ ordinal: 17000
 
 ## Description
 
+<!-- SECTION:DESCRIPTION:BEGIN -->
 Found during the TASK-13 autonomous suspect triage (docs/SUSPECT-TRIAGE.md).
 quarkus-scheduler is classified suspect by the analyzer, but the evidence says
 signal-2's own-jar check should mark it used-bytecode:
@@ -50,6 +54,7 @@ Investigation steps (do NOT guess; confirm against the artifact):
 
 If confirmed as a bug, this is high-leverage: a fix with no design trade-off (no
 shared-jar-safety weakening), unlike TASK-8.
+<!-- SECTION:DESCRIPTION:END -->
 
 ## Definition of Done
 
@@ -58,3 +63,9 @@ shared-jar-safety weakening), unlike TASK-8.
 - [ ] #2 Fix the smallest true cause; add a regression test
 - [ ] #3 Re-run both benches; scheduler should flip to used-bytecode; no other
       verdict changes expected
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+RESOLVED 2026-08-11 as NOT-A-BUG: airtight re-check shows io.quarkus.scheduler.Scheduled lives in quarkus-scheduler-api (the SHARED jar), NOT in quarkus-scheduler's own runtime jar (which holds only io/quarkus/scheduler/runtime/* classes). The earlier 'in its own jar' claim was a grep artifact (the runtime jar contains SchedulerConfig etc. matching a loose pattern). So scheduler is the SAME shared-jar pattern as hibernate-validator: the app references the annotation, but the annotation type lives in a shared jar that exclusive attribution deliberately does not credit. This is safety-by-design, not a signal-2 bug. Downgraded from HIGH; no code change. This reinforces the triage conclusion that all confirmed false positives share one root cause (shared/ubiquitous-jar attribution exclusion).
+<!-- SECTION:NOTES:END -->

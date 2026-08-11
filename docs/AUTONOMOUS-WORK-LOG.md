@@ -69,3 +69,21 @@ To be appended as work lands.
     internally consistent. No changes forced.
 - **Commit:** pending (will commit with work unit 2 to keep the triage and its
   task-file updates in one reviewable change set).
+
+### Work unit 2, 2026-08-11, TASK-17 investigation: resolved as not-a-bug
+
+- **What:** investigated the scheduler "anomaly" from the triage. Airtight
+  re-check (exact-class `unzip -l` on quarkus-scheduler vs quarkus-scheduler-api)
+  showed `io.quarkus.scheduler.Scheduled` lives in the SHARED
+  `quarkus-scheduler-api` jar, not the extension's own runtime jar. The earlier
+  "in its own jar" claim was a loose-grep artifact. Closed TASK-17 as not-a-bug
+  via `backlog task edit TASK-17 --status Done`; corrected SUSPECT-TRIAGE.md.
+- **Outcome:** scheduler is the same shared-jar pattern as hibernate-validator,
+  confirming the triage's root-cause finding (all confirmed FPs trace to the
+  shared/ubiquitous-jar attribution exclusion). No code change.
+- **End-of-unit review:**
+  - `/simplify`: n/a (no code touched, docs + task status only).
+  - `/code-review` (conceptual): the resolution is two-source verified
+    (exact-class unzip on two jars). The self-correction of my own earlier
+    false claim is recorded honestly, not papered over. No changes forced.
+- **Commit:** with the triage correction below.
