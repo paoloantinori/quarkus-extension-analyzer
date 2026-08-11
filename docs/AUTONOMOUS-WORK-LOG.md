@@ -112,3 +112,19 @@ To be appended as work lands.
     exercised locally, so its first real validation is the next push (the user
     controls pushes; no outward action taken). Recorded, not papered over.
 - **Commit:** below.
+
+### Work unit 4, 2026-08-11, Promotion materials drafts (docs/PROMO-DRAFTS.md)
+
+- **What:** drafted three promo pieces (quarkus-dev mailing list, Quarkus blog
+  guest post outline, Stack Overflow Q&A) citing the measured TASK-13 bench
+  numbers. All kept in one review-only doc; nothing published.
+- **Editorial stance:** baked the honest precision caveat into the copy itself
+  ("roughly half of remaining suspects are false positives, reported as
+  suspect-with-evidence"), so adopters get correct expectations rather than an
+  inflated precision claim.
+- **End-of-unit review (docs only):**
+  - `/simplify`: n/a (prose draft, no code).
+  - `/code-review` (conceptual/fact-check): every cited number verified against
+    source (40 unremovable false positives from README; suspect=5 from the
+    measured bench; coordinates correct). No em-dashes. No changes forced.
+- **Commit:** below.
