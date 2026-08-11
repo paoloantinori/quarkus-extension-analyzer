@@ -1,0 +1,58 @@
+name: Cross-version
+
+# Complements ci.yml: that workflow gates the plugin on a single (JDK 17,
+# image-default Maven) toolchain. This one runs the same plugin test suite
+# across a matrix of JDKs to catch toolchain-specific breakage early (the plugin
+# targets release 17, but most users build under newer LTS JDKs).
+#
+# Scope is deliberately just the JDK matrix. It does NOT (yet) test across
+# Quarkus app versions: the plugin's 83 unit tests use synthetic
+# ApplicationModels, so they are app-version-independent by construction. A
+# cross-Quarkus-version integration test (analyzing a fixture app built against
+# several Quarkus BOMs) is the larger follow-up that belongs in plugin/src/it/;
+# this JDK matrix is the cheap first layer. A Maven-minor matrix was considered
+# and deferred to avoid a third-party setup-maven action (supply-chain surface);
+# the runner's bundled Maven is sufficient for these synthetic unit tests.
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  schedule:
+    # weekly, 07:00 UTC Mondays, to catch drift in the toolchain images
+    - cron: '0 7 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  matrix-build:
+    name: JDK ${{ matrix.java }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        # JDK 17 is the compile target (ci.yml pins it). 21 is the current LTS
+        # and the most common runtime. Keep both; add a new line only when a new
+        # LTS matters.
+        java: ['17', '21']
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up JDK ${{ matrix.java }}
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          java-version: ${{ matrix.java }}
+          distribution: 'temurin'
+          cache: 'maven'
+          cache-dependency-path: 'plugin/pom.xml'
+
+      # spike/ is intentionally not built (see ci.yml): it depends on local-only
+      # benchmark artifacts. Only plugin/ is gated.
+      - name: Build and test plugin
+        working-directory: plugin
+        run: mvn -q verify

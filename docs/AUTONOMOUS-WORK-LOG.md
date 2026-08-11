@@ -87,3 +87,28 @@ To be appended as work lands.
     (exact-class unzip on two jars). The self-correction of my own earlier
     false claim is recorded honestly, not papered over. No changes forced.
 - **Commit:** with the triage correction below.
+
+### Work unit 3, 2026-08-11, Cross-version CI workflow (.github/workflows/cross-version.yml)
+
+- **What:** added a JDK-matrix CI workflow (17, 21) complementing ci.yml. First
+  draft had a Maven-matrix plus a third-party `setup-maven` action; I dropped
+  both (the Maven-matrix needed a floating-tag third-party action, a
+  supply-chain surface the repo's discipline rejects; the synthetic unit tests
+  are app/Maven-version-independent anyway). Final: JDK matrix only, same pinned
+  actions as ci.yml, weekly schedule + manual dispatch.
+- **Process note:** searched the real Maven 3.9.x release list (caught my own
+  wrong guess that 3.9.11 existed; latest is 3.9.9) before relying on version
+  facts, per the search-before-asserting rule.
+- **End-of-unit review (code touched):**
+  - `/simplify`: ran a direct 4-angle self-review (reuse/simplification/
+    efficiency/altitude) instead of spawning 4 subagents, proportionate to a
+    single 50-line YAML. No changes forced: reuses ci.yml's pinned actions,
+    already simplified (Maven-matrix removed), parallel matrix + cached Maven,
+    right altitude (JDK matrix now, cross-Quarkus integration test deferred to
+    plugin/src/it/).
+  - `/code-review` (high effort): supply chain clean (SHA-pinned, no third
+    party, least perms); fail-fast false correct; `working-directory`/`mvn
+    verify` match ci.yml. One non-blocking observation: the workflow cannot be
+    exercised locally, so its first real validation is the next push (the user
+    controls pushes; no outward action taken). Recorded, not papered over.
+- **Commit:** below.
