@@ -290,3 +290,39 @@ degrading default behavior.
   the noise filter's package list (java/javax/slf4j/jboss-logging/commons-
   logging/etc.) is curated and could miss a future ubiquitous lib; acceptable
   for an opt-in experimental signal, flagged in the javadoc.
+
+### Work unit 5, 2026-08-12, Architecture decision + plan (both forms)
+
+- **Decision (user):** build BOTH the mojo (Option A) and the extension
+  (Option B/M5), as independent projects sharing a core. Triggered by the
+  producer-extraction prototype, which proved the standalone mojo cannot resolve
+  annotation-consumer FP (hibernate-validator via @NotNull) without a curated
+  invariant-weakening table, while the extension form reads ArC's bean index and
+  resolves them for free.
+- **Producer-extraction prototype** (/tmp/QeaProducerProbe.java): ASM
+  instruction-level harvest validated that configure(Validator.class) is
+  statically extractable and exclusive to hibernate-validator. BUT the bench
+  showed rest-fights references @NotNull (the annotation), NOT Validator (the
+  produced bean), so hibernate-validator is the annotation-CONSUMER pattern, not
+  the producer pattern. Producer-extraction would resolve producer-pattern cases
+  (kubernetes-client) but those are already covered by TASK-5 transitively. Net:
+  producer-extraction is redundant on our benches; the headline FP need the ArC
+  data only the extension form provides.
+- **Architecture (3 artifacts, docs/REARCH-PLAN.md):** core (TASK-18) = Analyzer
+  + report, pure Java + Quarkus bootstrap API; mojo (TASK-15, exists) = resolution
+  shell; extension (TASK-19, new) = @BuildStep shell reading ArC. Boundary is
+  already clean (Analyzer accepts resolved ApplicationModel; resolution lives in
+  mojo).
+- **Tasks filed:** TASK-18 (core extraction), TASK-19 (extension form).
+  TASK-14 (old deferred M5) marked superseded.
+- **End-of-unit review (docs only, no code):**
+  - `/simplify`: n/a (design doc + task bookkeeping).
+  - `/code-review` (conceptual): the plan's "no duplicate Quarkus" claim rests
+    on the documented question-asymmetry (pom-level hygiene vs bean-level DCE),
+    verified against ArC's actual behavior (research). The 3-artifact boundary is
+    grounded in the existing clean Analyzer/mojo split (verified by import count).
+    Build order (core before extension) is correct. Open decisions flagged for the
+    maintainer. No changes forced.
+- **Commit:** below.
+- **Natural stop:** TASK-18/TASK-19 are substantial re-architecture needing the
+  maintainer's review of docs/REARCH-PLAN.md before execution. Stopping here.

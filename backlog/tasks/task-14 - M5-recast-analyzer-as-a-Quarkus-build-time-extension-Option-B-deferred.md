@@ -4,6 +4,7 @@ title: 'M5: recast analyzer as a Quarkus build-time extension (Option B, deferre
 status: To Do
 assignee: []
 created_date: '2026-08-07 06:49'
+updated_date: '2026-08-12 14:30'
 labels: []
 dependencies: []
 references:
@@ -35,3 +36,9 @@ Prerequisites: (1) TASK-13 bench re-baseline confirms the analyzer's real-world 
 - [ ] #1 Run /simplify on the changed code and apply the cleanups it surfaces
 - [ ] #2 Run /code-review at high effort on the final diff and resolve every finding
 <!-- DOD:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+SUPERSEDED 2026-08-12 by TASK-19 (concrete extension-form task) and TASK-18 (shared core). The user decided to build BOTH architectures (mojo + extension) as independent projects. This task's content (Option B / M5 rationale) is now split: the extension wiring is TASK-19, the shared core is TASK-18. Keep this task for its historical rationale (the pros/cons analysis that informed the both-architectures decision); do not implement from it directly.
+<!-- SECTION:NOTES:END -->
