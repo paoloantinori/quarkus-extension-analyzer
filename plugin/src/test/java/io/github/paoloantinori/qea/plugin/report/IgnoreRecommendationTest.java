@@ -28,14 +28,14 @@ class IgnoreRecommendationTest {
     void includesOwnConfigCapabilityAndInheritedConfigRows() {
         ExtensionReport ownConfig = new ExtensionReport("io.quarkus:quarkus-agroal", true, Verdict.USED_CONFIG,
                 false, Set.of("quarkus.datasource."), List.of("quarkus.datasource.db-kind"), Set.of(), List.of(),
-                false, List.of(), null, null, null, List.of());
+                false, List.of(), null, null, null, List.of(), List.of());
         ExtensionReport inheritedConfig = new ExtensionReport("io.quarkus:quarkus-jdbc-h2", true, Verdict.USED_CONFIG,
                 true, Set.of("quarkus.datasource."), List.of("quarkus.datasource.h2.db-kind"), Set.of(), List.of(),
-                false, List.of(), null, null, null, List.of());
+                false, List.of(), null, null, null, List.of(), List.of());
         ExtensionReport capability = new ExtensionReport("io.quarkus:quarkus-vertx", true, Verdict.USED_CAPABILITY,
                 false, Set.of(), List.of(), Set.of(), List.of(), false,
                 List.of("used because io.quarkus:quarkus-undertow depends on it (direct extension dependency)"),
-                null, null, null, List.of());
+                null, null, null, List.of(), List.of());
 
         List<IgnoreRecommendation> recs = IgnoreRecommendation.of(List.of(ownConfig, inheritedConfig, capability));
 
@@ -46,9 +46,9 @@ class IgnoreRecommendationTest {
     @Test
     void excludesUsedBytecodeAndSuspectRows() {
         ExtensionReport bytecode = new ExtensionReport("io.quarkus:quarkus-jackson", true, Verdict.USED_BYTECODE,
-                false, Set.of(), List.of(), Set.of(), List.of(), true, List.of(), null, null, null, List.of());
+                false, Set.of(), List.of(), Set.of(), List.of(), true, List.of(), null, null, null, List.of(), List.of());
         ExtensionReport suspect = new ExtensionReport("io.quarkus:quarkus-scheduler", true, Verdict.SUSPECT, false,
-                Set.of(), List.of(), Set.of(), List.of(), false, List.of(), "no signal fired", null, null, List.of());
+                Set.of(), List.of(), Set.of(), List.of(), false, List.of(), "no signal fired", null, null, List.of(), List.of());
 
         List<IgnoreRecommendation> recs = IgnoreRecommendation.of(List.of(bytecode, suspect));
 
@@ -61,7 +61,7 @@ class IgnoreRecommendationTest {
                 + "io.quarkus:quarkus-resteasy-reactive";
         ExtensionReport capability = new ExtensionReport("io.quarkus:quarkus-vertx-http", true,
                 Verdict.USED_CAPABILITY, false, Set.of(), List.of(), Set.of(), List.of(), false, List.of(evidence),
-                null, null, null, List.of());
+                null, null, null, List.of(), List.of());
 
         List<IgnoreRecommendation> recs = IgnoreRecommendation.of(List.of(capability));
 
@@ -75,10 +75,10 @@ class IgnoreRecommendationTest {
     void reasonDistinguishesOwnFromInheritedConfigRoots() {
         ExtensionReport own = new ExtensionReport("io.quarkus:quarkus-agroal", true, Verdict.USED_CONFIG, false,
                 Set.of("quarkus.datasource."), List.of("quarkus.datasource.db-kind"), Set.of(), List.of(), false,
-                List.of(), null, null, null, List.of());
+                List.of(), null, null, null, List.of(), List.of());
         ExtensionReport inherited = new ExtensionReport("io.quarkus:quarkus-jdbc-h2", true, Verdict.USED_CONFIG, true,
                 Set.of("quarkus.datasource."), List.of("quarkus.datasource.h2.db-kind"), Set.of(), List.of(), false,
-                List.of(), null, null, null, List.of());
+                List.of(), null, null, null, List.of(), List.of());
 
         List<IgnoreRecommendation> recs = IgnoreRecommendation.of(List.of(own, inherited));
 

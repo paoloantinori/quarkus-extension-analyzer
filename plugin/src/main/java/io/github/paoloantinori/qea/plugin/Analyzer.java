@@ -24,6 +24,8 @@ import io.github.paoloantinori.qea.plugin.configroot.ConfigRootSource;
 import io.github.paoloantinori.qea.plugin.configroot.RootAttributor;
 import io.github.paoloantinori.qea.plugin.configroot.RootInheritance;
 import io.github.paoloantinori.qea.plugin.configroot.ValueRules;
+import io.github.paoloantinori.qea.plugin.deploymentvocab.DeploymentVocabulary;
+import io.github.paoloantinori.qea.plugin.deploymentvocab.VocabularyAttribution;
 import io.github.paoloantinori.qea.plugin.model.ExtensionNode;
 import io.github.paoloantinori.qea.plugin.report.AnalysisReport;
 import io.github.paoloantinori.qea.plugin.report.ExtensionReport;
@@ -84,6 +86,21 @@ public final class Analyzer {
     }
 
     public AnalysisReport analyze(ApplicationModel model, List<Path> classesDirs, AppConfigReader appConfig)
+            throws IOException {
+        return analyze(model, classesDirs, appConfig, false);
+    }
+
+    /**
+     * @param vocabularySignal TASK-8 experimental fourth signal: when {@code true}, harvest each extension's
+     *                         deployment-jar referenced-type vocabulary and credit an extension as
+     *                         used-bean-producer for app-referenced types exclusive to its vocabulary. OFF
+     *                         by default (the mojo exposes it as {@code -Dqea.vocabularySignal=true}); the
+     *                         bench experiment showed its net effect is marginal and it cannot resolve the
+     *                         shared-producer-type false positives without weakening the exclusivity
+     *                         invariant, so it does not run unless explicitly requested.
+     */
+    public AnalysisReport analyze(ApplicationModel model, List<Path> classesDirs, AppConfigReader appConfig,
+            boolean vocabularySignal)
             throws IOException {
         List<ResolvedDependency> allExtensions = new ArrayList<>();
         for (ResolvedDependency d : model.getDependencies()) {
@@ -184,6 +201,30 @@ public final class Analyzer {
         Map<String, List<ExtensionReport.SharedReferencedJar>> sharedReferencedJarsHintByGa = sharedReferencedJarsHint(
                 sharedCandidateJarsByExtension, attribution.extensionsReachingJar(), referencedSharedJarGas);
 
+        // --- signal 4 (TASK-8): deployment-vocabulary attribution ----------------------------------
+        // Each extension's -deployment jar references a set of types (its "vocabulary": bean types it
+        // produces, clients it wires, annotations it consumes). If the app references a type exclusive
+        // to exactly one declared extension's vocabulary, that extension is used-bean-producer, even
+        // when the type lives in a shared jar TASK-5's exclusive transitive-API signal declines to
+        // attribute. Exclusivity (one vocabulary only) preserves the conservative safety property.
+        // Reuses the deploymentArtifactGav signal 1 already resolved (in probes) and
+        // BytecodeUsage.referencedTypes (the same walk as the app-classes scan), so this is a set
+        // intersection, not new analysis.
+        //
+        // OFF by default (qea.vocabularySignal): the bench experiment (TASK-8 phase C) showed the net
+        // effect over the three default signals is marginal and partly redundant with TASK-5, and the
+        // signal cannot resolve the shared-producer-type false positives (hibernate-validator etc.)
+        // without weakening the exclusivity invariant. It runs only when explicitly enabled.
+        Map<String, Set<String>> vocabularyEvidenceByGa = Map.of();
+        if (vocabularySignal) {
+            Map<String, Set<String>> vocabByExtension =
+                    vocabulariesConcurrently(allExtensions, probes, deploymentJarLookup);
+            vocabularyEvidenceByGa = VocabularyAttribution.attribute(vocabByExtension, jandexReferenced);
+            for (String gaKey : vocabularyEvidenceByGa.keySet()) {
+                bytecodeUsedByGa.put(gaKey, true);
+            }
+        }
+
         // --- signal 3: capabilities + hard extension dependencies, seeded by signals 1 and 2 ------
         Map<String, ExtensionNode> nodes = buildExtensionNodes(model, allExtensions, directExtDeps);
         Set<String> usedByConfigOrBytecode = new HashSet<>();
@@ -223,7 +264,8 @@ public final class Analyzer {
                         bytecodeUsedByGa.getOrDefault(gaKey, false), capabilityNewlyUsed,
                         transitiveApiEvidenceByGa.get(gaKey),
                         sharedReferencedJarsHintByGa.getOrDefault(gaKey, List.of()),
-                        valueRuleMatches.get(gaKey), valueRuleSuppressions.get(gaKey)));
+                        valueRuleMatches.get(gaKey), valueRuleSuppressions.get(gaKey),
+                        new ArrayList<>(vocabularyEvidenceByGa.getOrDefault(gaKey, Set.of()))));
             } else {
                 rows.add(classifyPlainJar(d, asmReferenced, plainJarScans, valueRuleMatches.get(gaKey)));
             }
@@ -254,6 +296,39 @@ public final class Analyzer {
         }
         futures.forEach(CompletableFuture::join);
         return probes;
+    }
+
+    /**
+     * TASK-8: each extension's deployment-jar referenced-type vocabulary, harvested concurrently on the
+     * same executor as {@link #probeConcurrently}. Reuses the {@code deploymentArtifactGav} signal 1
+     * already resolved (in {@code probes}) and the {@code deploymentJarLookup} that resolves it to jar
+     * paths, so the deployment jar is found once, not re-probed. The vocabulary is harvested from the
+     * deployment jar (build steps referencing the bean/API/annotation types the app uses), not the
+     * runtime jar; an extension without a resolvable deployment jar yields no fourth-signal evidence.
+     */
+    private Map<String, Set<String>> vocabulariesConcurrently(List<ResolvedDependency> extensions,
+            Map<String, ConfigRootProbe.Probe> probes, Function<String, Collection<Path>> deploymentJarLookup) {
+        Map<String, Set<String>> vocab = new ConcurrentHashMap<>();
+        List<CompletableFuture<Void>> futures = new ArrayList<>();
+        for (ResolvedDependency d : extensions) {
+            String gaKey = ga(d);
+            ConfigRootProbe.Probe probe = probes.get(gaKey);
+            if (probe == null || probe.deploymentArtifactGav == null) {
+                continue;
+            }
+            Collection<Path> deploymentPaths = deploymentJarLookup.apply(probe.deploymentArtifactGav);
+            if (deploymentPaths == null || deploymentPaths.isEmpty()) {
+                continue;
+            }
+            java.nio.file.Path jar = DeploymentVocabulary.firstDeploymentJar(deploymentPaths);
+            if (jar == null) {
+                continue;
+            }
+            futures.add(CompletableFuture.runAsync(
+                    () -> vocab.put(gaKey, DeploymentVocabulary.vocabularyOf(jar)), executor));
+        }
+        futures.forEach(CompletableFuture::join);
+        return vocab;
     }
 
     /** One plain jar's contained-class scan, or the failure that prevented it. */
@@ -610,7 +685,7 @@ public final class Analyzer {
             RootInheritance.Result inheritance, boolean bytecodeReferenced,
             Map<String, CapabilityJoin.Edge> capabilityNewlyUsed, String bytecodeViaTransitiveApi,
             List<ExtensionReport.SharedReferencedJar> sharedReferencedJarsHint, ValueRules.Match valueMatch,
-            ValueRules.Suppression suppression) {
+            ValueRules.Suppression suppression, List<String> vocabularyEvidence) {
         String gaKey = ga(d);
 
         List<String> ownKeys = keysWonByOwner.getOrDefault(gaKey, List.of());
@@ -683,7 +758,7 @@ public final class Analyzer {
 
         return new ExtensionReport(gaKey, true, verdict, inherited, configRoots, configMatchedKeys, configSource,
                 inheritedRoots, bytecodeReferenced, capabilityEvidence, note, bytecodeViaTransitiveApi,
-                valueRuleEvidence, sharedReferencedJars);
+                valueRuleEvidence, sharedReferencedJars, vocabularyEvidence);
     }
 
     /** TASK-7: the SUSPECT-branch note explaining why an otherwise-inheritable root was not trusted. */
@@ -704,13 +779,13 @@ public final class Analyzer {
         PlainJarScan scan = plainJarScans.get(gaKey);
         if (scan != null && scan.error() != null) {
             return new ExtensionReport(gaKey, false, Verdict.SUSPECT, false, Set.of(), List.of(), Set.of(), List.of(),
-                    false, List.of(), "bytecode scan failed: " + scan.error(), null, null, List.of());
+                    false, List.of(), "bytecode scan failed: " + scan.error(), null, null, List.of(), List.of());
         }
         Set<String> contained = scan == null ? Set.of() : scan.containedClasses();
         boolean used = contained.stream().anyMatch(asmReferenced::contains);
         if (used) {
             return new ExtensionReport(gaKey, false, Verdict.USED_BYTECODE, false, Set.of(), List.of(), Set.of(),
-                    List.of(), true, List.of(), null, null, null, List.of());
+                    List.of(), true, List.of(), null, null, null, List.of(), List.of());
         }
         // TASK-7: a plain jar (not a Quarkus extension, so no config-root/inheritance concept applies to
         // it at all) can still be the target of a value rule -- the Stork static-list case.
@@ -718,11 +793,11 @@ public final class Analyzer {
             String evidence = "selected by " + valueMatch.key() + "=" + valueMatch.value();
             return new ExtensionReport(gaKey, false, Verdict.USED_CONFIG, false, Set.of(),
                     List.of(valueMatch.key()), Set.of(ConfigRootSource.VALUE_RULE), List.of(), false, List.of(),
-                    null, null, evidence, List.of());
+                    null, null, evidence, List.of(), List.of());
         }
         String note = "plain jar: no reference found in compiled classes (bytecode signal only)";
         return new ExtensionReport(gaKey, false, Verdict.SUSPECT, false, Set.of(), List.of(), Set.of(), List.of(),
-                false, List.of(), note, null, null, List.of());
+                false, List.of(), note, null, null, List.of(), List.of());
     }
 
     /**

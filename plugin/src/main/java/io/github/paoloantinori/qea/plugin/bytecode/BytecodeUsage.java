@@ -88,6 +88,20 @@ public final class BytecodeUsage {
             return Set.of();
         }
         Index index = indexer.complete();
+        return referencedTypes(index);
+    }
+
+    /**
+     * Every type referenced, in declaration position, by the classes in a Jandex {@link Index}: field
+     * types, method return/parameter types, superclass, interfaces and annotation types (class-,
+     * field-, method- and record-component-level via {@code annotations()}, per TASK-12).
+     *
+     * <p>Shared by the app-classes scan ({@link #referencedTypesViaJandex}) and the deployment-jar
+     * vocabulary scan ({@code DeploymentVocabulary}), so "what types does this index reference?" is
+     * answered once, identically, for both. The deployment-jar fourth signal (TASK-8) is then a set
+     * intersection against the app's referenced set, not new analysis logic.
+     */
+    public static Set<String> referencedTypes(Index index) {
         Set<String> referenced = new TreeSet<>();
         for (ClassInfo ci : index.getKnownClasses()) {
             addName(referenced, ci.superName());
@@ -103,10 +117,6 @@ public final class BytecodeUsage {
                     addName(referenced, topLevelName(param));
                 }
             }
-            // annotations() is the broad Jandex view: class-, field-, method- and record-component-level
-            // annotations. declaredAnnotations()/classAnnotations() would miss member-level annotations
-            // such as a @NotNull on a record component (TASK-12: super-heroes rest-fights FightRequest),
-            // hiding jakarta.validation-api from this signal.
             for (AnnotationInstance ai : ci.annotations()) {
                 addName(referenced, ai.name());
             }

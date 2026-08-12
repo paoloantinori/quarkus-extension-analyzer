@@ -355,7 +355,7 @@ class AnalyzerTest {
                 "jakarta.validation:jakarta.validation-api", List.of("io.quarkus:quarkus-apicurio-registry-avro")));
 
         ExtensionReport row = Analyzer.classifyExtension(dep, new ConfigRootProbe.Probe(), Map.of(), Map.of(),
-                new RootInheritance.Result(Map.of(), Set.of()), false, Map.of(), null, hint, null, null);
+                new RootInheritance.Result(Map.of(), Set.of()), false, Map.of(), null, hint, null, null, List.of());
 
         assertThat(row.verdict()).isEqualTo(Verdict.SUSPECT);
         assertThat(row.sharedReferencedJars()).isEqualTo(hint);
@@ -376,7 +376,7 @@ class AnalyzerTest {
                 "jakarta.validation:jakarta.validation-api", List.of("io.quarkus:quarkus-apicurio-registry-avro")));
 
         ExtensionReport row = Analyzer.classifyExtension(dep, new ConfigRootProbe.Probe(), Map.of(), Map.of(),
-                new RootInheritance.Result(Map.of(), Set.of()), true, Map.of(), null, hint, null, null);
+                new RootInheritance.Result(Map.of(), Set.of()), true, Map.of(), null, hint, null, null, List.of());
 
         assertThat(row.verdict()).isEqualTo(Verdict.USED_BYTECODE);
         assertThat(row.sharedReferencedJars()).isEmpty();
@@ -407,7 +407,7 @@ class AnalyzerTest {
                 "quarkus.datasource.postgresql.db-kind", "postgresql", "quarkus.datasource.{name}.db-kind");
 
         ExtensionReport row = Analyzer.classifyExtension(dep, new ConfigRootProbe.Probe(), Map.of(), Map.of(),
-                new RootInheritance.Result(Map.of(), Set.of()), false, Map.of(), null, List.of(), match, null);
+                new RootInheritance.Result(Map.of(), Set.of()), false, Map.of(), null, List.of(), match, null, List.of());
 
         assertThat(row.verdict()).isEqualTo(Verdict.USED_CONFIG);
         assertThat(row.configInherited()).isFalse();
@@ -435,7 +435,7 @@ class AnalyzerTest {
                 "h2", "quarkus.datasource.{name}.db-kind");
 
         ExtensionReport row = Analyzer.classifyExtension(dep, new ConfigRootProbe.Probe(), Map.of(), inheritedKeysByGa,
-                inheritance, false, Map.of(), null, List.of(), match, null);
+                inheritance, false, Map.of(), null, List.of(), match, null, List.of());
 
         assertThat(row.verdict()).isEqualTo(Verdict.USED_CONFIG);
         assertThat(row.configInherited()).isFalse();
@@ -461,7 +461,7 @@ class AnalyzerTest {
                 "quarkus.datasource.{name}.db-kind", Set.of("quarkus.datasource.h2.db-kind"), Set.of("h2"));
 
         ExtensionReport row = Analyzer.classifyExtension(dep, new ConfigRootProbe.Probe(), Map.of(), inheritedKeysByGa,
-                inheritance, false, Map.of(), null, List.of(), null, suppression);
+                inheritance, false, Map.of(), null, List.of(), null, suppression, List.of());
 
         assertThat(row.verdict()).isEqualTo(Verdict.SUSPECT);
         assertThat(row.configInherited()).isFalse();
@@ -489,7 +489,7 @@ class AnalyzerTest {
         Map<String, CapabilityJoin.Edge> capabilityNewlyUsed = Map.of("io.quarkus:quarkus-jdbc-oracle", edge);
 
         ExtensionReport row = Analyzer.classifyExtension(dep, new ConfigRootProbe.Probe(), Map.of(), inheritedKeysByGa,
-                inheritance, false, capabilityNewlyUsed, null, List.of(), null, suppression);
+                inheritance, false, capabilityNewlyUsed, null, List.of(), null, suppression, List.of());
 
         assertThat(row.verdict()).isEqualTo(Verdict.USED_CAPABILITY);
     }

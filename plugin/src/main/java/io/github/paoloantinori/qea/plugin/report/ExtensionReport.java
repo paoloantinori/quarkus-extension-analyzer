@@ -63,6 +63,15 @@ import java.util.Set;
  *                            from 2+ declared extensions, so exclusive attribution would be a guess) but
  *                            that the project's compiled classes do reference. The hint informs human
  *                            triage of the suspect row; it never upgrades the verdict itself.
+ * @param vocabularyEvidence  TASK-8: the app-referenced types credited to this extension via its
+ *                            deployment-jar vocabulary (types the extension's {@code -deployment}
+ *                            build steps reference that the project's compiled classes also reference,
+ *                            and that are exclusive to this one declared extension's vocabulary), or
+ *                            an empty list when the fourth signal did not fire. When non-empty it is
+ *                            the reason {@link #bytecodeReferenced} is {@code true} for an extension
+ *                            whose own runtime artifact and exclusive transitive jars were not
+ *                            themselves referenced (e.g. hibernate-validator credited via
+ *                            {@code jakarta.validation.Validator}).
  */
 public record ExtensionReport(
         String ga,
@@ -78,7 +87,8 @@ public record ExtensionReport(
         String note,
         String bytecodeViaTransitiveApi,
         String valueRuleEvidence,
-        List<SharedReferencedJar> sharedReferencedJars) {
+        List<SharedReferencedJar> sharedReferencedJars,
+        List<String> vocabularyEvidence) {
 
     /**
      * TASK-11: one shared jar this extension's subtree reaches that the project's compiled classes

@@ -135,6 +135,19 @@ public class AnalyzeMojo extends AbstractMojo {
     @Parameter(property = "qea.debugAttribution", defaultValue = "false")
     private boolean debugAttribution;
 
+    /**
+     * TASK-8 (experimental, OFF by default): enable the deployment-vocabulary fourth signal, which
+     * credits an extension as used-bean-producer when the app references a type exclusive to that
+     * extension's {@code -deployment} jar vocabulary. Off by default because the bench experiment
+     * (docs/AUTONOMOUS-WORK-LOG.md, TASK-8 phase C) showed its net effect over the three default
+     * signals is marginal and partly redundant with TASK-5's transitive attribution, and it cannot
+     * resolve the shared-producer-type false positives (hibernate-validator etc.) without weakening
+     * the exclusivity safety property. Enable to experiment with the fourth signal; default verdicts
+     * are unchanged when off.
+     */
+    @Parameter(property = "qea.vocabularySignal", defaultValue = "false")
+    private boolean vocabularySignal;
+
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
         if (skip) {
@@ -152,7 +165,7 @@ public class AnalyzeMojo extends AbstractMojo {
         Analyzer analyzer = new Analyzer(executor, debugAttribution ? getLog()::debug : null);
         AnalysisReport report;
         try {
-            report = analyzer.analyze(model, classesDirs, appConfig);
+            report = analyzer.analyze(model, classesDirs, appConfig, vocabularySignal);
         } catch (IOException e) {
             throw new MojoExecutionException("quarkus-extension-analyzer: analysis failed", e);
         } finally {
