@@ -23,10 +23,8 @@ import io.github.paoloantinori.qea.plugin.report.Reporter;
 import io.github.paoloantinori.qea.plugin.report.Verdict;
 import io.quarkus.arc.deployment.BeanArchiveIndexBuildItem;
 import io.quarkus.deployment.annotations.BuildStep;
-import io.quarkus.deployment.annotations.Produce;
 import io.quarkus.deployment.BootstrapConfig;
 import io.quarkus.deployment.builditem.AppModelProviderBuildItem;
-import io.quarkus.deployment.pkg.builditem.ArtifactResultBuildItem;
 import io.quarkus.bootstrap.model.ApplicationModel;
 import org.jboss.logging.Logger;
 
@@ -58,13 +56,12 @@ public final class AnalyzerBuildStep {
     private static final Logger LOG = Logger.getLogger(AnalyzerBuildStep.class);
 
     /**
-     * Run the analyzer. A {@code @BuildStep} method is discovered by Quarkus via the deployment
-     * classloader; its consumed build items are injected. This step produces nothing (the report is
-     * a side effect on the build log), so it is a terminal observation step.
+     * Run the analyzer. Produces {@link AnalyzerReportBuildItem} (carrying the {@link AnalysisReport})
+     * so integration tests and other build steps can consume and assert on it. Also logs the report
+     * to the build log for human visibility.
      */
     @BuildStep
-    @Produce(ArtifactResultBuildItem.class)
-    public void analyzeExtensions(
+    AnalyzerReportBuildItem analyzeExtensions(
             AppModelProviderBuildItem appModelProvider,
             BeanArchiveIndexBuildItem beanArchiveIndex) throws IOException {
 
@@ -83,7 +80,7 @@ public final class AnalyzerBuildStep {
         ApplicationModel model = appModelProvider.validateAndGet(bootstrapConfig);
         if (model == null) {
             LOG.warn("quarkus-extension-analyzer: no ApplicationModel, skipping");
-            return;
+            return null;
         }
 
         // The app's compiled classes live in the build output directory during augmentation.
@@ -134,6 +131,8 @@ public final class AnalyzerBuildStep {
                                 + " suspect dependencies: " + suspects);
             }
         }
+
+        return new AnalyzerReportBuildItem(report);
     }
 
     private static AppConfigReader readAppConfig() {
