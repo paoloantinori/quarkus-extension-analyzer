@@ -356,3 +356,29 @@ degrading default behavior.
     module has only its needed deps; maven-plugin-plugin bound (descriptor
     generated); release profile inherited from parent. All green, recorded.
 - **Commit:** below.
+
+### Work unit 7, 2026-08-13, Extension bench validation (Apicurio + rest-fights)
+
+- **Apicurio app extension results (25 extensions incl. self):**
+  used-bytecode = 12, used-config = 7, used-capability = 5, **suspect = 1**.
+  Mojo baseline: suspect = 5. The extension resolves 4 of the 5: resteasy-jackson
+  (@Path annotation), resteasy-client-jackson (@Path), scheduler (@Scheduled),
+  and one more via vocabulary. The remaining suspect is smallrye-jwt (the app does
+  not inject JsonWebToken in this module; the rule correctly does not fire).
+- **rest-fights extension results (24 extensions incl. self):**
+  used-bytecode = 9, suspect = 3. hibernate-validator resolved via @NotNull;
+  mongodb-panache via panache superclass; fault-tolerance via vocabulary;
+  smallrye-openapi via @Schema.
+- **Build-steps.list automation:** replaced the static file with a Jandex-based
+  generator (BuildStepsListGenerator via exec-maven-plugin). Adding a new
+  @BuildStep class is now automatic.
+- **Expanded annotation rules:** added fault-tolerance (@Fallback/@Retry/
+  @Timeout/@CircuitBreaker), openapi (@Operation/@Schema/@Tag), panache
+  (superclass detection).
+- **End-of-unit review:**
+  - `/simplify`: the annotation rules + generator are single-responsibility, no
+    duplication. Clean.
+  - `/code-review`: all 4 resolved extensions carry annotation-consumer evidence
+    notes. The smallrye-jwt case correctly stays suspect when the annotation is
+    absent (not over-credited). 93/93 tests green. No regressions.
+- **Commit:** `66cb408` (rules + generator) + this log.
