@@ -103,8 +103,18 @@ public final class AnalyzerBuildStep {
         ExecutorService executor = Executors.newFixedThreadPool(
                 Math.max(2, Runtime.getRuntime().availableProcessors()));
         Analyzer analyzer = new Analyzer(executor, null);
-        AnalysisReport report = analyzer.analyze(model, classesDirs, appConfig);
+        // The extension form enables the vocabulary signal by default: inside augmentation the
+        // ApplicationModel is authoritative (no TASK-9 fragility), so the deployment-jar vocabulary
+        // harvest has complete, reliable data (unlike the mojo where it is opt-in and marginal).
+        AnalysisReport report = analyzer.analyze(model, classesDirs, appConfig, true);
         executor.shutdown();
+
+        // --- Annotation-consumer resolution (the extension form's unique value) ---
+        // The bean index (ArC's Jandex index of the app) knows which annotations the app uses.
+        // A small curated mapping credits the extension that processes each known annotation family,
+        // resolving the annotation-consumer false positives the mojo cannot (hibernate-validator
+        // via @NotNull, scheduler via @Scheduled, smallrye-jwt via @Inject JsonWebToken).
+        report = AnnotationAttribution.apply(report, beanArchiveIndex.getIndex(), model);
 
         // Emit the report via JBoss Logging (the canonical Quarkus build-time log channel,
         // visible in the build output; System.out may be redirected by the build harness).
