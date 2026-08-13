@@ -2,12 +2,14 @@
 
 Dependency-usage analysis that understands Quarkus.
 
-**Status:** M1 (spike), M2 (the `analyze` mojo), and M3 (ignore-list interop)
-are done and validated on two benches (Apicurio Registry and Quarkus
-super-heroes); see [docs/M2-VALIDATION.md](docs/M2-VALIDATION.md) and
-[docs/SECOND-BENCH.md](docs/SECOND-BENCH.md). M4 (a Quarkiverse evaluation)
-concluded the plugin ships standalone, not as a Quarkiverse extension; see
-[docs/M4-QUARKIVERSE-EVAL.md](docs/M4-QUARKIVERSE-EVAL.md). See
+**Status:** M1 (spike), M2 (the `analyze` mojo), M3 (ignore-list interop), and
+M4 (Quarkiverse evaluation) are done. M5 (the Quarkus build-time extension form)
+is a working prototype: it shares a common core library with the mojo and
+resolves annotation-consumer false positives the standalone mojo cannot, by
+reading ArC's bean index during augmentation. Both forms are validated on two
+benches (Apicurio Registry and Quarkus super-heroes); see
+[docs/M2-VALIDATION.md](docs/M2-VALIDATION.md), [docs/SECOND-BENCH.md](docs/SECOND-BENCH.md),
+and [docs/AUTONOMOUS-WORK-LOG.md](docs/AUTONOMOUS-WORK-LOG.md). See
 [docs/DESIGN.md](docs/DESIGN.md) for the full architecture.
 
 ## The problem
@@ -96,9 +98,14 @@ the natural long-term home is [Quarkiverse](https://github.com/quarkiverse).
   ship standalone (Maven Central), since Quarkiverse hosts Quarkus extensions,
   not Maven plugins. A build-time-extension form (M5) is a deferred option. See
   [docs/M4-QUARKIVERSE-EVAL.md](docs/M4-QUARKIVERSE-EVAL.md).
-- **M5, extension form** (deferred, data-gated): recast the analyzer as a
-  Quarkus build-time extension and propose to Quarkiverse, if bench data and
-  adoption justify it.
+- **M5, extension form** -- done (prototype). A Quarkus build-time extension that
+  runs the same analysis inside augmentation, reading ArC's bean index to resolve
+  annotation-consumer false positives the standalone mojo cannot. On Apicurio
+  `app`: extension suspects 5 -> **1**. On rest-fights: hibernate-validator
+  resolved (the case headline the mojo cannot close without weakening its
+  exclusivity invariant). The two forms (mojo + extension) share a common core
+  library. See [docs/REARCH-PLAN.md](docs/REARCH-PLAN.md) and
+  [docs/AUTONOMOUS-WORK-LOG.md](docs/AUTONOMOUS-WORK-LOG.md).
 
 ## Usage
 
