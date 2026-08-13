@@ -3,10 +3,10 @@ id: TASK-18
 title: >-
   Quarkus-aware extension-metadata harvest library (producer beans,
   capabilities) as a standalone OSS project
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-08-12 13:20'
-updated_date: '2026-08-13 10:33'
+updated_date: '2026-08-13 10:39'
 labels:
   - spike
 dependencies: []

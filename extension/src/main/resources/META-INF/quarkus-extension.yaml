@@ -1,0 +1,16 @@
+name: Quarkus Extension Analyzer
+metadata:
+  short-name: extension-analyzer
+  status: experimental
+  unlisted: true
+  synopsis: Classifies declared Quarkus extensions as used/suspect at build time (in-build analyzer).
+  description: |
+    A Quarkus extension that runs the extension-analyzer classification at build
+    time, reading ArC's bean index to resolve annotation-consumer false positives
+    the standalone mojo cannot. Report-only by default; opt-in build failure on
+    suspects via qea.failOnSuspect. See docs/REARCH-PLAN.md.
+  guide: https://github.com/paoloantinori/quarkus-extension-analyzer
+  categories:
+    - tooling
+  config:
+    - quarkus.extension-analyzer.

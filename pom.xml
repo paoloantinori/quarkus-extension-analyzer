@@ -40,6 +40,8 @@
   <modules>
     <module>core</module>
     <module>plugin</module>
+    <module>extension</module>
+    <module>extension-deployment</module>
     <!-- spike/ is intentionally NOT a reactor module: it is the throwaway M1 reference
          that depends on local-only benchmark artifacts. -->
   </modules>

@@ -3,10 +3,10 @@ id: TASK-19
 title: >-
   Quarkus build-time EXTENSION form (M5): in-build analyzer that reads ArC bean
   index to close annotation-consumer FP
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-08-12 14:29'
-updated_date: '2026-08-12 14:29'
+updated_date: '2026-08-13 10:40'
 labels: []
 dependencies: []
 priority: low

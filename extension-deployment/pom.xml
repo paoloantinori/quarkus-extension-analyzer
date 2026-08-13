@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>io.github.paoloantinori</groupId>
+    <artifactId>quarkus-extension-analyzer-parent</artifactId>
+    <version>1.0-SNAPSHOT</version>
+    <relativePath>../pom.xml</relativePath>
+  </parent>
+
+  <artifactId>quarkus-extension-analyzer-deployment</artifactId>
+  <packaging>jar</packaging>
+
+  <name>quarkus-extension-analyzer :: extension deployment</name>
+  <description>
+    The deployment module of the Quarkus extension form (TASK-19): the @BuildStep
+    that consumes AppModelProviderBuildItem (ApplicationModel) and
+    BeanArchiveIndexBuildItem (ArC's bean index), runs the shared core's Analyzer,
+    and resolves annotation-consumer false positives the standalone mojo cannot.
+  </description>
+
+  <dependencies>
+    <!-- The shared classification engine. -->
+    <dependency>
+      <groupId>io.github.paoloantinori</groupId>
+      <artifactId>quarkus-extension-analyzer-core</artifactId>
+    </dependency>
+    <!-- The runtime artifact of THIS extension. Quarkus requires the deployment module to depend
+         on its runtime module (the bootstrap classloader chain); a deployment without this is
+         rejected with "does not appear to depend on the corresponding runtime artifact". -->
+    <dependency>
+      <groupId>io.github.paoloantinori</groupId>
+      <artifactId>quarkus-extension-analyzer</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+
+    <!-- Quarkus deployment API: @BuildStep, BuildItem, BuildProducer. -->
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-core-deployment</artifactId>
+      <version>${quarkus.version}</version>
+    </dependency>
+    <!-- ArC deployment: BeanArchiveIndexBuildItem (the app's Jandex bean index). -->
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-arc-deployment</artifactId>
+      <version>${quarkus.version}</version>
+    </dependency>
+  </dependencies>
+</project>

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>io.github.paoloantinori</groupId>
+    <artifactId>quarkus-extension-analyzer-parent</artifactId>
+    <version>1.0-SNAPSHOT</version>
+    <relativePath>../pom.xml</relativePath>
+  </parent>
+
+  <artifactId>quarkus-extension-analyzer</artifactId>
+  <packaging>jar</packaging>
+
+  <name>quarkus-extension-analyzer :: extension runtime</name>
+  <description>
+    The runtime artifact of the Quarkus extension form (TASK-19). Near-empty: the
+    extension's value runs at BUILD time in the -deployment module (a @BuildStep
+    that classifies declared extensions via the shared core, reading ArC's bean
+    index). This runtime jar exists because Quarkus extensions are a
+    runtime+deployment pair; users add this artifactId to their app pom, and
+    quarkus-extension.properties points Quarkus to the deployment module. See
+    docs/REARCH-PLAN.md.
+  </description>
+
+  <dependencies>
+    <!-- The runtime artifact carries no classes of its own (the analysis runs at build time);
+         it only needs to exist as a well-formed extension runtime for Quarkus to load it. -->
+  </dependencies>
+
+  <build>
+    <!-- Filter resources so ${project.version} in quarkus-extension.properties is resolved to the
+         real version at build time. Without this, the deployment-artifact GAV carries the literal
+         string '${project.version}' and Quarkus silently cannot resolve the deployment jar. -->
+    <resources>
+      <resource>
+        <directory>src/main/resources</directory>
+        <filtering>true</filtering>
+      </resource>
+    </resources>
+  </build>
+</project>
