@@ -26,19 +26,38 @@
   </description>
 
   <dependencies>
-    <!-- The runtime artifact carries no classes of its own (the analysis runs at build time);
-         it only needs to exist as a well-formed extension runtime for Quarkus to load it. -->
+    <!-- Quarkus extension invariant: the runtime module must depend on the runtime counterparts
+         of every deployment dependency the deployment module declares. Since the deployment module
+         depends on quarkus-core-deployment and quarkus-arc-deployment, the runtime must carry
+         quarkus-core and quarkus-arc. The extension-descriptor goal enforces this. -->
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-core</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-arc</artifactId>
+    </dependency>
   </dependencies>
 
   <build>
-    <!-- Filter resources so ${project.version} in quarkus-extension.properties is resolved to the
-         real version at build time. Without this, the deployment-artifact GAV carries the literal
-         string '${project.version}' and Quarkus silently cannot resolve the deployment jar. -->
-    <resources>
-      <resource>
-        <directory>src/main/resources</directory>
-        <filtering>true</filtering>
-      </resource>
-    </resources>
+    <plugins>
+      <!-- The extension-descriptor goal belongs on the RUNTIME module. It reads the
+           deployment-artifact GAV from quarkus-extension.properties, resolves the deployment jar,
+           scans its classes for @BuildStep methods, and writes META-INF/quarkus-build-steps.list
+           into the deployment jar. Without this, @BuildStep methods are invisible to augmentation. -->
+      <plugin>
+        <groupId>io.quarkus</groupId>
+        <artifactId>quarkus-extension-maven-plugin</artifactId>
+        <version>${quarkus.version}</version>
+        <executions>
+          <execution>
+            <goals>
+              <goal>extension-descriptor</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
   </build>
 </project>

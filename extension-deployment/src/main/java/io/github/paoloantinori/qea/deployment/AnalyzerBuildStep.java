@@ -19,19 +19,24 @@ import io.github.paoloantinori.qea.plugin.Analyzer;
 import io.github.paoloantinori.qea.plugin.config.AppConfigReader;
 import io.github.paoloantinori.qea.plugin.report.AnalysisReport;
 import io.github.paoloantinori.qea.plugin.report.ExtensionReport;
+import io.github.paoloantinori.qea.plugin.report.Reporter;
 import io.github.paoloantinori.qea.plugin.report.Verdict;
 import io.quarkus.arc.deployment.BeanArchiveIndexBuildItem;
 import io.quarkus.deployment.annotations.BuildStep;
+import io.quarkus.deployment.annotations.Produce;
+import io.quarkus.deployment.BootstrapConfig;
 import io.quarkus.deployment.builditem.AppModelProviderBuildItem;
-import io.quarkus.deployment.pkg.builditem.CurateOutcomeBuildItem;
+import io.quarkus.deployment.pkg.builditem.ArtifactResultBuildItem;
 import io.quarkus.bootstrap.model.ApplicationModel;
-import org.jboss.jandex.IndexView;
+import org.jboss.logging.Logger;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * TASK-19: the @BuildStep that runs the analyzer inside Quarkus augmentation.
@@ -50,26 +55,38 @@ import java.util.List;
  */
 public final class AnalyzerBuildStep {
 
+    private static final Logger LOG = Logger.getLogger(AnalyzerBuildStep.class);
+
     /**
      * Run the analyzer. A {@code @BuildStep} method is discovered by Quarkus via the deployment
-     * classloader; its consumed build items are injected, and its produced items register in the
-     * build graph. This step produces nothing (the report is a side effect on the build log), so it
-     * is a terminal observation step.
+     * classloader; its consumed build items are injected. This step produces nothing (the report is
+     * a side effect on the build log), so it is a terminal observation step.
      */
     @BuildStep
+    @Produce(ArtifactResultBuildItem.class)
     public void analyzeExtensions(
             AppModelProviderBuildItem appModelProvider,
-            BeanArchiveIndexBuildItem beanArchiveIndex,
-            CurateOutcomeBuildItem curateOutcome,
-            AnalyzerConfig config) throws IOException {
+            BeanArchiveIndexBuildItem beanArchiveIndex) throws IOException {
 
-        ApplicationModel model = appModelProvider.validateAndGet(null);
+        LOG.info("quarkus-extension-analyzer: build step firing");
+
+        // validateAndGet requires a BootstrapConfig (null causes NPE). Provide a no-op that skips
+        // platform-import validation (IGNORE) and uses builder/model-resolver defaults.
+        BootstrapConfig bootstrapConfig = new BootstrapConfig() {
+            @Override public boolean effectiveModelBuilder() { return false; }
+            @Override public boolean workspaceDiscovery() { return false; }
+            @Override public boolean warnOnFailingWorkspaceModules() { return false; }
+            @Override public boolean disableJarCache() { return false; }
+            @Override public boolean legacyModelResolver() { return false; }
+            @Override public MisalignedPlatformImports misalignedPlatformImports() { return MisalignedPlatformImports.IGNORE; }
+        };
+        ApplicationModel model = appModelProvider.validateAndGet(bootstrapConfig);
         if (model == null) {
+            LOG.warn("quarkus-extension-analyzer: no ApplicationModel, skipping");
             return;
         }
 
         // The app's compiled classes live in the build output directory during augmentation.
-        // The Analyzer reads target/classes (and test-classes) for the bytecode + Jandex signals.
         List<Path> classesDirs = new ArrayList<>();
         Path mainClasses = Path.of("target", "classes");
         if (Files.isDirectory(mainClasses)) {
@@ -83,19 +100,17 @@ public final class AnalyzerBuildStep {
         // The app config: read from the conventional location, same as the mojo's default.
         AppConfigReader appConfig = readAppConfig();
 
-        // ArC's bean index: the authoritative producer/consumer wiring. The fourth signal
-        // (annotation-consumer resolution) derives from it; the mojo cannot compute this.
-        // For now, the index is consumed to confirm availability; the full annotation-consumer
-        // signal wiring is the next iteration (it needs mapping app annotation usage to the
-        // extension whose deployment processes each annotation, which this index enables).
-        IndexView beanIndex = beanArchiveIndex.getIndex();
-
-        Analyzer analyzer = new Analyzer(null, null);
+        ExecutorService executor = Executors.newFixedThreadPool(
+                Math.max(2, Runtime.getRuntime().availableProcessors()));
+        Analyzer analyzer = new Analyzer(executor, null);
         AnalysisReport report = analyzer.analyze(model, classesDirs, appConfig);
+        executor.shutdown();
 
-        // Emit the report to the build log (text form), mirroring the mojo's textReport=true.
-        System.out.println(io.github.paoloantinori.qea.plugin.report.Reporter.toText(report));
+        // Emit the report via JBoss Logging (the canonical Quarkus build-time log channel,
+        // visible in the build output; System.out may be redirected by the build harness).
+        LOG.info("\n" + Reporter.toText(report));
 
+        AnalyzerConfig config = new AnalyzerConfig();
         if (config.failOnSuspect) {
             List<String> suspects = new ArrayList<>();
             for (ExtensionReport r : report.dependencies()) {
