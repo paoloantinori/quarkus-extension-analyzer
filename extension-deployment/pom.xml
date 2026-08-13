@@ -69,4 +69,29 @@
       <scope>test</scope>
     </dependency>
   </dependencies>
+
+  <build>
+    <plugins>
+      <!-- Generate META-INF/quarkus-build-steps.list by scanning target/classes for @BuildStep
+           methods (using Jandex), replacing the static list file. Runs during process-classes,
+           after compile. This avoids the quarkus-extension-maven-plugin reactor-ordering issue
+           (which needs the deployment jar before the runtime module builds). -->
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <version>3.5.0</version>
+        <executions>
+          <execution>
+            <id>generate-build-steps-list</id>
+            <phase>process-classes</phase>
+            <goals><goal>java</goal></goals>
+            <configuration>
+              <mainClass>io.github.paoloantinori.qea.deployment.BuildStepsListGenerator</mainClass>
+              <arguments><argument>${project.build.outputDirectory}</argument></arguments>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
 </project>
