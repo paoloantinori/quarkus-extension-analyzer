@@ -4,97 +4,32 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>io.github.paoloantinori</groupId>
+  <parent>
+    <groupId>io.github.paoloantinori</groupId>
+    <artifactId>quarkus-extension-analyzer-parent</artifactId>
+    <version>1.0-SNAPSHOT</version>
+  </parent>
+
   <artifactId>quarkus-extension-analyzer-maven-plugin</artifactId>
-  <version>1.0-SNAPSHOT</version>
   <packaging>maven-plugin</packaging>
 
   <name>quarkus-extension-analyzer :: Maven plugin</name>
   <description>
-    Maven plugin classifying declared Quarkus extensions as used-bytecode / used-config /
-    used-capability / suspect, per docs/DESIGN.md. Production module; spike/ stays as the
-    throwaway M1 reference.
+    The standalone Maven-plugin shell: resolves the ApplicationModel itself
+    (ChainedMavenWorkspaceReader, the TASK-9 reactor-resolution machinery) and
+    delegates classification to the core. For CI sweep over any built Quarkus
+    app without modifying its pom. See docs/REARCH-PLAN.md.
   </description>
 
-  <url>https://github.com/paoloantinori/quarkus-extension-analyzer</url>
-  <scm>
-    <connection>scm:git:https://github.com/paoloantinori/quarkus-extension-analyzer.git</connection>
-    <developerConnection>scm:git:git@github.com:paoloantinori/quarkus-extension-analyzer.git</developerConnection>
-    <url>https://github.com/paoloantinori/quarkus-extension-analyzer</url>
-  </scm>
-  <licenses>
-    <license>
-      <name>Apache License, Version 2.0</name>
-      <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
-      <distribution>repo</distribution>
-    </license>
-  </licenses>
-  <developers>
-    <developer>
-      <id>paoloantinori</id>
-      <name>Paolo Antinori</name>
-      <url>https://github.com/paoloantinori</url>
-    </developer>
-  </developers>
-
-  <properties>
-    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <maven.compiler.release>17</maven.compiler.release>
-    <!-- Version of the Quarkus bootstrap resolver libraries this plugin embeds; independent of the
-         Quarkus version of the project being analyzed (the ApplicationModel/resolver API is stable
-         across 3.x). Kept in sync with the M1 spike for continuity. -->
-    <quarkus.version>3.33.2.1</quarkus.version>
-    <maven.version>3.9.9</maven.version>
-    <plugin-tools.version>3.15.1</plugin-tools.version>
-    <resolver.version>1.9.22</resolver.version>
-  </properties>
-
-  <dependencyManagement>
-    <dependencies>
-      <dependency>
-        <groupId>io.quarkus</groupId>
-        <artifactId>quarkus-bom</artifactId>
-        <version>${quarkus.version}</version>
-        <type>pom</type>
-        <scope>import</scope>
-      </dependency>
-    </dependencies>
-  </dependencyManagement>
-
   <dependencies>
-    <!-- ApplicationModel resolution, fed by the Maven session's own RepositorySystem in the mojo. -->
+    <!-- The shared classification engine. -->
     <dependency>
-      <groupId>io.quarkus</groupId>
-      <artifactId>quarkus-bootstrap-maven-resolver</artifactId>
-      <version>${quarkus.version}</version>
+      <groupId>io.github.paoloantinori</groupId>
+      <artifactId>quarkus-extension-analyzer-core</artifactId>
     </dependency>
 
-    <!-- Signal 1 source D (@ConfigMapping/@ConfigRoot) and signal 2's extension bytecode probe. -->
-    <dependency>
-      <groupId>io.smallrye</groupId>
-      <artifactId>jandex</artifactId>
-    </dependency>
-
-    <!-- Signal 1 source B (META-INF/quarkus-extension.yaml) and best-effort application.yaml reading. -->
-    <dependency>
-      <groupId>org.yaml</groupId>
-      <artifactId>snakeyaml</artifactId>
-    </dependency>
-
-    <!-- Signal 1 source C (quarkus-config-doc/quarkus-config-model.json) and JSON report output. -->
-    <dependency>
-      <groupId>com.fasterxml.jackson.core</groupId>
-      <artifactId>jackson-databind</artifactId>
-    </dependency>
-
-    <!-- Signal 2 for plain (non-extension) jars: standard bytecode-reference semantics, comparable to
-         maven-dependency-plugin:analyze. -->
-    <dependency>
-      <groupId>org.apache.maven.shared</groupId>
-      <artifactId>maven-dependency-analyzer</artifactId>
-      <version>1.17.0</version>
-    </dependency>
-
+    <!-- Mojo API + the Maven-session collaborators injected via @Component (RepositorySystem,
+         RemoteRepositoryManager, SettingsDecrypter) used to build the BootstrapAppModelResolver. -->
     <dependency>
       <groupId>org.apache.maven</groupId>
       <artifactId>maven-plugin-api</artifactId>
@@ -134,19 +69,6 @@
       <version>${plugin-tools.version}</version>
       <scope>provided</scope>
     </dependency>
-
-    <dependency>
-      <groupId>org.junit.jupiter</groupId>
-      <artifactId>junit-jupiter</artifactId>
-      <version>5.10.5</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.assertj</groupId>
-      <artifactId>assertj-core</artifactId>
-      <version>3.27.7</version>
-      <scope>test</scope>
-    </dependency>
   </dependencies>
 
   <build>
@@ -159,83 +81,6 @@
         <artifactId>maven-plugin-plugin</artifactId>
         <version>${plugin-tools.version}</version>
       </plugin>
-      <!-- Pinned for the same reason: the Maven-core default-bound 3.2.5's JUnit-platform provider
-           is not present locally, 3.5.6's is. -->
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-surefire-plugin</artifactId>
-        <version>3.5.6</version>
-      </plugin>
     </plugins>
   </build>
-
-  <profiles>
-    <!-- All Maven Central release machinery lives behind -Prelease so normal builds and CI never
-         resolve the GPG/Central/source/javadoc plugins. Run with: mvn -Prelease clean deploy.
-         See docs/RELEASING.md for one-time prerequisites (Central namespace, GPG key, settings.xml). -->
-    <profile>
-      <id>release</id>
-      <build>
-        <plugins>
-          <plugin>
-            <groupId>org.apache.maven.plugins</groupId>
-            <artifactId>maven-source-plugin</artifactId>
-            <version>3.3.1</version>
-            <executions>
-              <execution>
-                <id>attach-sources</id>
-                <goals>
-                  <goal>jar-no-fork</goal>
-                </goals>
-              </execution>
-            </executions>
-          </plugin>
-          <plugin>
-            <groupId>org.apache.maven.plugins</groupId>
-            <artifactId>maven-javadoc-plugin</artifactId>
-            <version>3.11.2</version>
-            <executions>
-              <execution>
-                <id>attach-javadocs</id>
-                <goals>
-                  <goal>jar</goal>
-                </goals>
-              </execution>
-            </executions>
-          </plugin>
-          <plugin>
-            <groupId>org.apache.maven.plugins</groupId>
-            <artifactId>maven-gpg-plugin</artifactId>
-            <version>3.2.7</version>
-            <executions>
-              <execution>
-                <id>sign-artifacts</id>
-                <phase>verify</phase>
-                <goals>
-                  <goal>sign</goal>
-                </goals>
-                <configuration>
-                  <gpgArguments>
-                    <arg>--pinentry-mode</arg>
-                    <arg>loopback</arg>
-                  </gpgArguments>
-                </configuration>
-              </execution>
-            </executions>
-          </plugin>
-          <plugin>
-            <groupId>org.sonatype.central</groupId>
-            <artifactId>central-publishing-maven-plugin</artifactId>
-            <version>0.9.0</version>
-            <extensions>true</extensions>
-            <configuration>
-              <publishingServerId>central</publishingServerId>
-              <autoPublish>true</autoPublish>
-              <waitUntil>published</waitUntil>
-            </configuration>
-          </plugin>
-        </plugins>
-      </build>
-    </profile>
-  </profiles>
 </project>

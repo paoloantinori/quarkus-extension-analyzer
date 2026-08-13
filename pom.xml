@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>io.github.paoloantinori</groupId>
+  <artifactId>quarkus-extension-analyzer-parent</artifactId>
+  <version>1.0-SNAPSHOT</version>
+  <packaging>pom</packaging>
+
+  <name>quarkus-extension-analyzer :: parent</name>
+  <description>
+    Dependency-usage analysis that understands Quarkus. Parent/aggregator for the
+    core library, the Maven-plugin shell, and (planned) the Quarkus-extension
+    shell. See docs/REARCH-PLAN.md.
+  </description>
+
+  <url>https://github.com/paoloantinori/quarkus-extension-analyzer</url>
+  <scm>
+    <connection>scm:git:https://github.com/paoloantinori/quarkus-extension-analyzer.git</connection>
+    <developerConnection>scm:git:git@github.com:paoloantinori/quarkus-extension-analyzer.git</developerConnection>
+    <url>https://github.com/paoloantinori/quarkus-extension-analyzer</url>
+  </scm>
+  <licenses>
+    <license>
+      <name>Apache License, Version 2.0</name>
+      <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+      <distribution>repo</distribution>
+    </license>
+  </licenses>
+  <developers>
+    <developer>
+      <id>paoloantinori</id>
+      <name>Paolo Antinori</name>
+      <url>https://github.com/paoloantinori</url>
+    </developer>
+  </developers>
+
+  <modules>
+    <module>core</module>
+    <module>plugin</module>
+    <!-- spike/ is intentionally NOT a reactor module: it is the throwaway M1 reference
+         that depends on local-only benchmark artifacts. -->
+  </modules>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <maven.compiler.release>17</maven.compiler.release>
+    <!-- Version of the Quarkus bootstrap resolver libraries this project embeds; independent of the
+         Quarkus version of the project being analyzed (the ApplicationModel/resolver API is stable
+         across 3.x). -->
+    <quarkus.version>3.33.2.1</quarkus.version>
+    <maven.version>3.9.9</maven.version>
+    <plugin-tools.version>3.15.1</plugin-tools.version>
+    <resolver.version>1.9.22</resolver.version>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>io.quarkus</groupId>
+        <artifactId>quarkus-bom</artifactId>
+        <version>${quarkus.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <!-- The modules reference each other by GAV; version centralized here. -->
+      <dependency>
+        <groupId>io.github.paoloantinori</groupId>
+        <artifactId>quarkus-extension-analyzer-core</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <build>
+    <pluginManagement>
+      <plugins>
+        <!-- Pinned (rather than Maven-core defaults) because the default-bound versions are not
+             present locally and this environment must not reach out for extra artifacts beyond
+             normal dependency resolution. -->
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-surefire-plugin</artifactId>
+          <version>3.5.6</version>
+        </plugin>
+      </plugins>
+    </pluginManagement>
+  </build>
+
+  <profiles>
+    <!-- All Maven Central release machinery lives behind -Prelease so normal builds and CI never
+         resolve the GPG/Central/source/javadoc plugins. Run with: mvn -Prelease clean deploy.
+         See docs/RELEASING.md for one-time prerequisites (Central namespace, GPG key, settings.xml). -->
+    <profile>
+      <id>release</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-source-plugin</artifactId>
+            <version>3.3.1</version>
+            <executions>
+              <execution>
+                <id>attach-sources</id>
+                <goals>
+                  <goal>jar-no-fork</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-javadoc-plugin</artifactId>
+            <version>3.11.2</version>
+            <executions>
+              <execution>
+                <id>attach-javadocs</id>
+                <goals>
+                  <goal>jar</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-gpg-plugin</artifactId>
+            <version>3.2.7</version>
+            <executions>
+              <execution>
+                <id>sign-artifacts</id>
+                <phase>verify</phase>
+                <goals>
+                  <goal>sign</goal>
+                </goals>
+                <configuration>
+                  <gpgArguments>
+                    <arg>--pinentry-mode</arg>
+                    <arg>loopback</arg>
+                  </gpgArguments>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.sonatype.central</groupId>
+            <artifactId>central-publishing-maven-plugin</artifactId>
+            <version>0.9.0</version>
+            <extensions>true</extensions>
+            <configuration>
+              <publishingServerId>central</publishingServerId>
+              <autoPublish>true</autoPublish>
+              <waitUntil>published</waitUntil>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
+</project>

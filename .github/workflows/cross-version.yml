@@ -51,8 +51,6 @@ jobs:
           cache: 'maven'
           cache-dependency-path: 'plugin/pom.xml'
 
-      # spike/ is intentionally not built (see ci.yml): it depends on local-only
-      # benchmark artifacts. Only plugin/ is gated.
-      - name: Build and test plugin
-        working-directory: plugin
+      # Build the multi-module reactor from the root (core + plugin); spike/ is not a reactor module.
+      - name: Build and test (reactor)
         run: mvn -q verify

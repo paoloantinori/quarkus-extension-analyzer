@@ -26,9 +26,9 @@ jobs:
           cache: 'maven'
           cache-dependency-path: 'plugin/pom.xml'
 
-      # spike/ is intentionally not built here: it exercises the M1 reference flow against
-      # real registry benchmark artifacts that are only available locally, not in CI. It stays
-      # a manual/local-only module; only plugin/ (the production module, 45 tests) is gated.
-      - name: Build and test plugin
-        working-directory: plugin
+      # Build the multi-module reactor from the root: parent -> core -> plugin. core/ holds the
+      # classification engine + tests; plugin/ is the mojo shell that depends on core. spike/ is
+      # intentionally not a reactor module (it is the throwaway M1 reference depending on local-only
+      # benchmark artifacts), so `mvn verify` from the root builds core + plugin only.
+      - name: Build and test (reactor)
         run: mvn -q verify

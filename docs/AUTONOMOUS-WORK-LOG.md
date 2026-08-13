@@ -326,3 +326,33 @@ degrading default behavior.
 - **Commit:** below.
 - **Natural stop:** TASK-18/TASK-19 are substantial re-architecture needing the
   maintainer's review of docs/REARCH-PLAN.md before execution. Stopping here.
+
+### Work unit 6, 2026-08-13, TASK-18 core extraction (multi-module reorg)
+
+- **What:** split the single plugin/ module into a 3-artifact reactor per
+  docs/REARCH-PLAN.md: root parent POM (aggregator + dependencyManagement +
+  release profile), core/ (Analyzer + all signal packages + report model +
+  value-rules.txt + all 90 tests), plugin/ (the mojo shell, now only
+  AnalyzeMojo + its ChainedMavenWorkspaceReader inner class). git mv preserved
+  history (renames at ~100% similarity).
+- **Dependency split:** core = quarkus-bootstrap + jandex + snakeyaml + jackson
+  + maven-dependency-analyzer (the signal libraries); plugin = core + maven
+  plugin-api/core/resolver-impl/settings-builder/plugin-tools (the mojo
+  resolution collaborators). No circular dependency (verified).
+- **Verified end-to-end:** reactor compiles (parent -> core -> plugin); 90/90
+  tests pass in core; plugin descriptor generates (maven-plugin-plugin); smoke
+  test invokes the analyze goal by GAV on rest-fights and produces the correct
+  report (suspect=3, unchanged baseline). The mojo-in-new-module round-trip
+  works, not just "compiles."
+- **CI updated:** ci.yml + cross-version.yml now build from the reactor root
+  (mvn -q verify) instead of working-directory: plugin, so core is built before
+  plugin.
+- **DoD:**
+  - `/simplify`: n/a for a mechanical move (logic unchanged; git detects renames
+    at ~100% similarity). The only new logic is the three POMs, which are
+    minimal. Quality gate = build + smoke, satisfied.
+  - `/code-review` (correctness, 7-point pass): plugin depends on core; no
+    circular; parent lists both modules; mojo's 6 core imports resolve; each
+    module has only its needed deps; maven-plugin-plugin bound (descriptor
+    generated); release profile inherited from parent. All green, recorded.
+- **Commit:** below.
