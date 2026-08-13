@@ -60,7 +60,11 @@ public final class AnnotationAttribution {
             new AnnotationRule("io.quarkus.scheduler.Scheduled", "io.quarkus:quarkus-scheduler"),
             new AnnotationRule("org.eclipse.microprofile.jwt.JsonWebToken", "io.quarkus:quarkus-smallrye-jwt"),
             new AnnotationRule("jakarta.ws.rs", "io.quarkus:quarkus-resteasy-jackson"),
-            new AnnotationRule("jakarta.ws.rs", "io.quarkus:quarkus-resteasy-client-jackson")
+            new AnnotationRule("jakarta.ws.rs", "io.quarkus:quarkus-resteasy-client-jackson"),
+            new AnnotationRule("org.eclipse.microprofile.faulttolerance.", "io.quarkus:quarkus-smallrye-fault-tolerance"),
+            new AnnotationRule("io.smallrye.faulttolerance.api.", "io.quarkus:quarkus-smallrye-fault-tolerance"),
+            new AnnotationRule("io.quarkus.mongodb.panache.", "io.quarkus:quarkus-mongodb-panache"),
+            new AnnotationRule("org.eclipse.microprofile.openapi.annotations.", "io.quarkus:quarkus-smallrye-openapi")
     );
 
     private AnnotationAttribution() {
@@ -173,6 +177,26 @@ public final class AnnotationAttribution {
         }
         if (prefix.startsWith("jakarta.ws.rs")) {
             return !index.getAnnotations(DotName.createSimple("jakarta.ws.rs.Path")).isEmpty();
+        }
+        if (prefix.startsWith("org.eclipse.microprofile.faulttolerance.")) {
+            return !index.getAnnotations(DotName.createSimple("org.eclipse.microprofile.faulttolerance.Fallback")).isEmpty()
+                    || !index.getAnnotations(DotName.createSimple("org.eclipse.microprofile.faulttolerance.Retry")).isEmpty()
+                    || !index.getAnnotations(DotName.createSimple("org.eclipse.microprofile.faulttolerance.Timeout")).isEmpty()
+                    || !index.getAnnotations(DotName.createSimple("org.eclipse.microprofile.faulttolerance.CircuitBreaker")).isEmpty()
+                    || !index.getAnnotations(DotName.createSimple("org.eclipse.microprofile.faulttolerance.Asynchronous")).isEmpty();
+        }
+        if (prefix.startsWith("io.smallrye.faulttolerance.api.")) {
+            return !index.getAnnotations(DotName.createSimple("io.smallrye.faulttolerance.api.Async")).isEmpty()
+                    || !index.getAnnotations(DotName.createSimple("io.smallrye.faulttolerance.api.ApplyProfile")).isEmpty();
+        }
+        if (prefix.startsWith("io.quarkus.mongodb.panache.")) {
+            return index.getKnownClasses().stream().anyMatch(ci ->
+                    ci.superName() != null && ci.superName().toString().startsWith("io.quarkus.mongodb.panache"));
+        }
+        if (prefix.startsWith("org.eclipse.microprofile.openapi.annotations.")) {
+            return !index.getAnnotations(DotName.createSimple("org.eclipse.microprofile.openapi.annotations.Operation")).isEmpty()
+                    || !index.getAnnotations(DotName.createSimple("org.eclipse.microprofile.openapi.annotations.media.Schema")).isEmpty()
+                    || !index.getAnnotations(DotName.createSimple("org.eclipse.microprofile.openapi.annotations.tags.Tag")).isEmpty();
         }
         return false;
     }
