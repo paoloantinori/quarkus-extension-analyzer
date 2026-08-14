@@ -64,7 +64,10 @@ public final class AnnotationAttribution {
             new AnnotationRule("org.eclipse.microprofile.faulttolerance.", "io.quarkus:quarkus-smallrye-fault-tolerance"),
             new AnnotationRule("io.smallrye.faulttolerance.api.", "io.quarkus:quarkus-smallrye-fault-tolerance"),
             new AnnotationRule("io.quarkus.mongodb.panache.", "io.quarkus:quarkus-mongodb-panache"),
-            new AnnotationRule("org.eclipse.microprofile.openapi.annotations.", "io.quarkus:quarkus-smallrye-openapi")
+            new AnnotationRule("org.eclipse.microprofile.openapi.annotations.", "io.quarkus:quarkus-smallrye-openapi"),
+            new AnnotationRule("io.quarkus.qute.", "io.quarkus:quarkus-rest-qute"),
+            new AnnotationRule("FILE:application.yml", "io.quarkus:quarkus-config-yaml"),
+            new AnnotationRule("FILE:application.yaml", "io.quarkus:quarkus-config-yaml")
     );
 
     private AnnotationAttribution() {
@@ -197,6 +200,21 @@ public final class AnnotationAttribution {
             return !index.getAnnotations(DotName.createSimple("org.eclipse.microprofile.openapi.annotations.Operation")).isEmpty()
                     || !index.getAnnotations(DotName.createSimple("org.eclipse.microprofile.openapi.annotations.media.Schema")).isEmpty()
                     || !index.getAnnotations(DotName.createSimple("org.eclipse.microprofile.openapi.annotations.tags.Tag")).isEmpty();
+        }
+        if (prefix.startsWith("io.quarkus.qute.")) {
+            // Qute templates: the app declares @CheckedTemplate classes or injects Template/TemplateInstance.
+            return !index.getAnnotations(DotName.createSimple("io.quarkus.qute.CheckedTemplate")).isEmpty()
+                    || !index.getAnnotations(DotName.createSimple("io.quarkus.qute.Location")).isEmpty()
+                    || index.getKnownClasses().stream().anyMatch(ci ->
+                    ci.methods().stream().anyMatch(m -> m.returnType().name().toString().equals("io.quarkus.qute.TemplateInstance"))
+                    || ci.fields().stream().anyMatch(f -> f.type().name().toString().equals("io.quarkus.qute.Template")));
+        }
+        if (prefix.startsWith("FILE:")) {
+            // Config-file presence rule: the extension that parses the file the app actually ships.
+            // Evidence is the file on disk, not the bean index (config-yaml contributes no annotations).
+            String fileName = prefix.substring("FILE:".length());
+            return java.nio.file.Files.isRegularFile(java.nio.file.Path.of("src", "main", "resources", fileName))
+                    || java.nio.file.Files.isRegularFile(java.nio.file.Path.of("target", "classes", fileName));
         }
         return false;
     }

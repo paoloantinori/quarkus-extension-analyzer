@@ -23,8 +23,10 @@ import io.github.paoloantinori.qea.plugin.report.Reporter;
 import io.github.paoloantinori.qea.plugin.report.Verdict;
 import io.quarkus.arc.deployment.BeanArchiveIndexBuildItem;
 import io.quarkus.deployment.annotations.BuildStep;
+import io.quarkus.deployment.annotations.Produce;
 import io.quarkus.deployment.BootstrapConfig;
 import io.quarkus.deployment.builditem.AppModelProviderBuildItem;
+import io.quarkus.deployment.pkg.builditem.ArtifactResultBuildItem;
 import io.quarkus.bootstrap.model.ApplicationModel;
 import org.jboss.logging.Logger;
 
@@ -59,8 +61,15 @@ public final class AnalyzerBuildStep {
      * Run the analyzer. Produces {@link AnalyzerReportBuildItem} (carrying the {@link AnalysisReport})
      * so integration tests and other build steps can consume and assert on it. Also logs the report
      * to the build log for human visibility.
+     *
+     * <p>The additional {@code @Produce(ArtifactResultBuildItem.class)} is required for the step to be
+     * included in the build graph: a step whose only output ({@link AnalyzerReportBuildItem}) is
+     * consumed by nobody would be elided by Quarkus's build-graph dead-code elimination. Marking it
+     * as also producing the artifact result (which the packaging pipeline always requires) makes the
+     * step "always run", regardless of whether anyone consumes the report item.
      */
     @BuildStep
+    @Produce(ArtifactResultBuildItem.class)
     AnalyzerReportBuildItem analyzeExtensions(
             AppModelProviderBuildItem appModelProvider,
             BeanArchiveIndexBuildItem beanArchiveIndex) throws IOException {
