@@ -382,3 +382,31 @@ degrading default behavior.
     notes. The smallrye-jwt case correctly stays suspect when the annotation is
     absent (not over-credited). 93/93 tests green. No regressions.
 - **Commit:** `66cb408` (rules + generator) + this log.
+
+### Work unit 8, 2026-08-14, Fourth bench set: quarkus-quickstarts (3 apps)
+
+- **What:** validated mojo + extension on 3 official quickstarts covering gaps in the
+  existing benches: grpc-plain-text (gRPC), cache (quarkus-cache), scheduler
+  (scheduler as primary feature). All Quarkus 3.38.2.
+- **Results (mojo):** grpc-quickstart 0 suspects; scheduler-quickstart 0 suspects;
+  cache-quickstart 2 suspects (quarkus-rest, quarkus-rest-jackson).
+- **Rule gap found and fixed:** the jakarta.ws.rs rules targeted only the LEGACY
+  artifacts (quarkus-resteasy-jackson / -client-jackson); cache-quickstart declares
+  the modern io.quarkus:quarkus-rest. Added rules for quarkus-rest and
+  quarkus-resteasy; the declared-extension guard makes both generations coexist
+  safely. Verified: quarkus-resolved on cache-quickstart via @Path evidence.
+- **New documented pattern (not forced):** quarkus-rest-jackson as a
+  serialization-only extension: REST responses are serialized by Jackson but the
+  app references neither the extension classes nor Jackson types, and there is no
+  config. No static signal can see it; crediting it from @Path usage would be
+  wrong attribution (@Path evidences REST, not the serializer choice). Left
+  suspect-with-evidence by design.
+- **Consistency note:** on scheduler-quickstart the MOJO resolves quarkus-scheduler
+  without the extension form, because with only 2 declared extensions the
+  quarkus-scheduler-api jar is EXCLUSIVE in the app's graph, so TASK-5 transitive
+  attribution credits it. The exclusivity invariant works as designed: it credits
+  when attribution is unambiguous and defers when shared.
+- **End-of-unit review:** /simplify n/a (rule table addition); /code-review: the
+  declared-extension guard verified present for the new rules; no over-credit on
+  any quickstart (serialization-only extension correctly stays suspect).
+- **Quickstart poms restored clean after each run (verified 0 analyzer refs).**

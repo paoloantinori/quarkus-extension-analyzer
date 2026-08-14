@@ -61,6 +61,10 @@ public final class AnnotationAttribution {
             new AnnotationRule("org.eclipse.microprofile.jwt.JsonWebToken", "io.quarkus:quarkus-smallrye-jwt"),
             new AnnotationRule("jakarta.ws.rs", "io.quarkus:quarkus-resteasy-jackson"),
             new AnnotationRule("jakarta.ws.rs", "io.quarkus:quarkus-resteasy-client-jackson"),
+            // The modern Quarkus REST artifact (formerly resteasy-reactive) and the legacy plain
+            // resteasy: whichever is the declared suspect gets credited by the same @Path evidence.
+            new AnnotationRule("jakarta.ws.rs", "io.quarkus:quarkus-rest"),
+            new AnnotationRule("jakarta.ws.rs", "io.quarkus:quarkus-resteasy"),
             new AnnotationRule("org.eclipse.microprofile.faulttolerance.", "io.quarkus:quarkus-smallrye-fault-tolerance"),
             new AnnotationRule("io.smallrye.faulttolerance.api.", "io.quarkus:quarkus-smallrye-fault-tolerance"),
             new AnnotationRule("io.quarkus.mongodb.panache.", "io.quarkus:quarkus-mongodb-panache"),
