@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+  <parent>
+    <artifactId>quarkus-extension-analyzer-parent</artifactId>
+    <groupId>io.github.paoloantinori</groupId>
+    <version>1.0-SNAPSHOT</version>
+  </parent>
+  <modelVersion>4.0.0</modelVersion>
+  <artifactId>quarkus-extension-analyzer-shaded</artifactId>
+  <name>quarkus-extension-analyzer :: shaded runner (TASK-20)</name>
+  <description>Self-contained runner for the mojo: bundles core + the Quarkus bootstrap resolver
+    with every io.quarkus.* class RELOCATED to io.github.paoloantinori.qea.internal, so
+    projects that expose their own Quarkus bootstrap classes into the Maven build realm
+    (e.g. via quarkus-maven-plugin as a build extension, the camel-quarkus IT case) can
+    no longer collide with the embedded version (the TASK-20 LinkageError). The entry
+    class uses only JDK and Maven-API types at its boundary and returns the report as
+    JSON, so no relocated type ever crosses the classloader line.</description>
+  <build>
+    <plugins>
+      <plugin>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>3.6.0</version>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals>
+              <goal>shade</goal>
+            </goals>
+            <configuration>
+              <createDependencyReducedPom>true</createDependencyReducedPom>
+              <relocations>
+                <relocation>
+                  <pattern>io.quarkus</pattern>
+                  <shadedPattern>io.github.paoloantinori.qea.internal.quarkus</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>org.jboss.jandex</pattern>
+                  <shadedPattern>io.github.paoloantinori.qea.internal.jandex</shadedPattern>
+                </relocation>
+              </relocations>
+              <transformers>
+                <transformer />
+              </transformers>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+  <dependencies>
+    <dependency>
+      <groupId>org.apache.maven</groupId>
+      <artifactId>maven-plugin-api</artifactId>
+      <version>3.9.9</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.maven</groupId>
+      <artifactId>maven-core</artifactId>
+      <version>3.9.9</version>
+      <scope>provided</scope>
+      <exclusions>
+        <exclusion>
+          <artifactId>checker-qual</artifactId>
+          <groupId>org.checkerframework</groupId>
+        </exclusion>
+        <exclusion>
+          <artifactId>slf4j-api</artifactId>
+          <groupId>org.slf4j</groupId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.maven.resolver</groupId>
+      <artifactId>maven-resolver-api</artifactId>
+      <version>1.9.22</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.maven.resolver</groupId>
+      <artifactId>maven-resolver-impl</artifactId>
+      <version>1.9.22</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.maven</groupId>
+      <artifactId>maven-settings-builder</artifactId>
+      <version>3.9.9</version>
+      <scope>provided</scope>
+      <exclusions>
+        <exclusion>
+          <artifactId>plexus-utils</artifactId>
+          <groupId>org.codehaus.plexus</groupId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+  </dependencies>
+</project>

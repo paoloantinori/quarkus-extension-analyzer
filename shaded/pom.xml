@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>io.github.paoloantinori</groupId>
+    <artifactId>quarkus-extension-analyzer-parent</artifactId>
+    <version>1.0-SNAPSHOT</version>
+    <relativePath>../pom.xml</relativePath>
+  </parent>
+
+  <artifactId>quarkus-extension-analyzer-shaded</artifactId>
+  <packaging>jar</packaging>
+
+  <name>quarkus-extension-analyzer :: shaded runner (TASK-20)</name>
+  <description>
+    Self-contained runner for the mojo: bundles core + the Quarkus bootstrap resolver
+    with every io.quarkus.* class RELOCATED to io.github.paoloantinori.qea.internal, so
+    projects that expose their own Quarkus bootstrap classes into the Maven build realm
+    (e.g. via quarkus-maven-plugin as a build extension, the camel-quarkus IT case) can
+    no longer collide with the embedded version (the TASK-20 LinkageError). The entry
+    class uses only JDK and Maven-API types at its boundary and returns the report as
+    JSON, so no relocated type ever crosses the classloader line.
+  </description>
+
+  <dependencies>
+    <dependency>
+      <groupId>io.github.paoloantinori</groupId>
+      <artifactId>quarkus-extension-analyzer-core</artifactId>
+    </dependency>
+    <!-- The model resolution to be relocated; becomes part of the shaded jar. -->
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-bootstrap-maven-resolver</artifactId>
+      <version>${quarkus.version}</version>
+    </dependency>
+
+    <!-- Maven API types used at the runner boundary (shared through the parent realm at runtime,
+         so NOT relocated; provided scope keeps them out of the shaded jar). -->
+    <dependency>
+      <groupId>org.apache.maven</groupId>
+      <artifactId>maven-plugin-api</artifactId>
+      <version>${maven.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.maven</groupId>
+      <artifactId>maven-core</artifactId>
+      <version>${maven.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.maven.resolver</groupId>
+      <artifactId>maven-resolver-api</artifactId>
+      <version>${resolver.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.maven.resolver</groupId>
+      <artifactId>maven-resolver-impl</artifactId>
+      <version>${resolver.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.maven</groupId>
+      <artifactId>maven-settings-builder</artifactId>
+      <version>${maven.version}</version>
+      <scope>provided</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>3.6.0</version>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals><goal>shade</goal></goals>
+            <configuration>
+              <createDependencyReducedPom>true</createDependencyReducedPom>
+              <!-- No filter: core + all transitives land in the shaded jar. -->
+              <relocations>
+                <!-- The whole point of TASK-20: our embedded Quarkus bootstrap must be invisible
+                     to the project realm's own (possibly different) Quarkus classes. -->
+                <relocation>
+                  <pattern>io.quarkus</pattern>
+                  <shadedPattern>io.github.paoloantinori.qea.internal.quarkus</shadedPattern>
+                </relocation>
+                <!-- Smallrye/jandex transitives are not typically present in project realms, but
+                     relocating them too keeps the shaded jar hermetic. -->
+                <relocation>
+                  <pattern>org.jboss.jandex</pattern>
+                  <shadedPattern>io.github.paoloantinori.qea.internal.jandex</shadedPattern>
+                </relocation>
+              </relocations>
+              <transformers>
+                <!-- Rewrites META-INF/services entries so ServiceLoader inside the shaded
+                     bootstrap resolves the relocated class names. -->
+                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+              </transformers>
+              <!-- Keep the original (unshaded) classes of THIS module too: the runner entry class
+                   lives here and references only JDK/Maven types, so it does not need relocation. -->
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>

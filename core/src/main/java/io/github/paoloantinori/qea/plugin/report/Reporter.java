@@ -20,6 +20,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import io.github.paoloantinori.qea.plugin.configroot.RootInheritance;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -118,5 +119,18 @@ public final class Reporter {
             Files.createDirectories(parent);
         }
         JSON.writeValue(target.toFile(), report);
+    }
+
+    /**
+     * The report as a JSON string. Used by the shaded runner (TASK-20), which returns the report
+     * across the classloader boundary as text because its AnalysisReport class (relocated under
+     * the internal namespace) is not the caller's class.
+     */
+    public static String toJson(AnalysisReport report) {
+        try {
+            return JSON.writeValueAsString(report);
+        } catch (IOException e) {
+            throw new UncheckedIOException("failed to serialize the report", e);
+        }
     }
 }

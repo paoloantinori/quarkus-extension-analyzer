@@ -22,10 +22,11 @@
   </description>
 
   <dependencies>
-    <!-- The shared classification engine. -->
+    <!-- The self-contained runner (TASK-20): core + bootstrap resolver, relocated under our
+         namespace so projects exposing their own Quarkus classes cannot collide. -->
     <dependency>
       <groupId>io.github.paoloantinori</groupId>
-      <artifactId>quarkus-extension-analyzer-core</artifactId>
+      <artifactId>quarkus-extension-analyzer-shaded</artifactId>
     </dependency>
 
     <!-- Mojo API + the Maven-session collaborators injected via @Component (RepositorySystem,

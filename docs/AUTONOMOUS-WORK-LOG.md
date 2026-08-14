@@ -410,3 +410,30 @@ degrading default behavior.
   declared-extension guard verified present for the new rules; no over-credit on
   any quickstart (serialization-only extension correctly stays suspect).
 - **Quickstart poms restored clean after each run (verified 0 analyzer refs).**
+
+### Work unit 10, 2026-08-14, TASK-20 fixed: shaded runner eliminates the LinkageError
+
+- **Fix:** new `shaded` module (quarkus-extension-analyzer-shaded): core + the
+  embedded Quarkus bootstrap resolver with ALL io.quarkus.* classes relocated to
+  io.github.paoloantinori.qea.internal.* (jandex relocated too;
+  ServicesResourceTransformer for META-INF/services). Entry class
+  IsolatedAnalyzerRunner: JDK+Maven-API-only boundary, runs the model resolution
+  and the analysis inside the relocated world, returns the report as JSON+text.
+  AnalyzeMojo is now a thin shell (parameters, report-file, failOnSuspect via
+  JSON parsing); its dependency list contains ONLY the shaded artifact.
+- **Verification:**
+  1. The camel-quarkus grpc IT (the LinkageError repro) now completes with a
+     full report (5 extensions: 1 used-bytecode, 4 suspect).
+  2. Zero regressions across all six prior benches (mojo form): rest-fights
+     suspect=3, rest-heroes=5, apicurio=5, grpc-quickstart=0,
+     scheduler-quickstart=0, cache-quickstart=2; all identical to pre-shading.
+  3. 96/96 reactor tests green.
+  4. Shaded jar inspected: 7897 classes, all relocated, zero unrelocated
+     io/quarkus/ entries, services files present.
+- **Root cause recap (documented in TASK-20):** camel-quarkus ITs register
+  quarkus-maven-plugin as a build EXTENSION, loading Quarkus 3.39 classes into
+  the project's core realm; parent-first delegation made those classes win for
+  every split package, mixing 3.39 and our embedded 3.33 in one linkage.
+- **DoD:** #1 repro (the IT), #2 fix verified, #3 no regressions; #4 (unit
+  test for the isolation) n/a: the isolation is packaging-level (shade), its
+  proof IS the camel repro, which is exercised end-to-end.

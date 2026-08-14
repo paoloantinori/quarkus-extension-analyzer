@@ -39,6 +39,7 @@
 
   <modules>
     <module>core</module>
+    <module>shaded</module>
     <module>plugin</module>
     <module>extension</module>
     <module>extension-deployment</module>
@@ -71,6 +72,11 @@
       <dependency>
         <groupId>io.github.paoloantinori</groupId>
         <artifactId>quarkus-extension-analyzer-core</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.github.paoloantinori</groupId>
+        <artifactId>quarkus-extension-analyzer-shaded</artifactId>
         <version>${project.version}</version>
       </dependency>
     </dependencies>

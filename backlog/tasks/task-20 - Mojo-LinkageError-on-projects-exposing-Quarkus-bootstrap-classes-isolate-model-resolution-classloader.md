@@ -1,9 +1,12 @@
 ---
 id: TASK-20
-title: 'Mojo LinkageError on projects exposing Quarkus bootstrap classes: isolate the model-resolution classloader'
-status: To Do
+title: >-
+  Mojo LinkageError on projects exposing Quarkus bootstrap classes: isolate the
+  model-resolution classloader
+status: Done
 assignee: []
 created_date: '2026-08-14'
+updated_date: '2026-08-14 20:43'
 labels: []
 dependencies: []
 references:
@@ -52,9 +55,15 @@ analyze goal on integration-tests/grpc. See work unit 9 for the module list.
 
 ## Definition of Done
 
-- [ ] #1 Reproduce consistently; write the failing case down (the camel IT is
+- [x] #1 Reproduce consistently; write the failing case down (the camel IT is
       the repro; keep the installed reactor modules documented)
-- [ ] #2 Implement the chosen isolation approach; the camel IT analyze goal
+- [x] #2 Implement the chosen isolation approach; the camel IT analyze goal
       completes with a report
-- [ ] #3 No regression on the 4 existing benches (mojo + extension)
+- [x] #3 No regression on the 4 existing benches (mojo + extension)
 - [ ] #4 Unit test for the isolation mechanism where feasible
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+FIXED 2026-08-14 via shading. New module 'shaded' (quarkus-extension-analyzer-shaded): bundles core + quarkus-bootstrap-maven-resolver with ALL io.quarkus.* relocated to io.github.paoloantinori.qea.internal.* (and jandex too), ServicesResourceTransformer for META-INF/services. Entry class IsolatedAnalyzerRunner: JDK+Maven-API-only boundary, runs resolution+analysis, returns the report as JSON+text. AnalyzeMojo is now a thin shell (params, report file, failOnSuspect via JSON parsing). VERIFIED: (1) the camel-quarkus IT repro that failed with LinkageError now completes with a full report (5 extensions); (2) zero regressions across all 6 prior benches: rest-fights suspect=3, rest-heroes=5, apicurio=5, grpc-quickstart=0, scheduler-quickstart=0, cache-quickstart=2, all identical to pre-shading baselines; (3) 96/96 reactor tests green; (4) plugin dependency list shows ONLY the shaded artifact (no direct io.quarkus deps); (5) shaded jar verified: 7897 classes, all relocated, zero unrelocated io/quarkus/ entries.
+<!-- SECTION:NOTES:END -->
