@@ -92,19 +92,28 @@ public final class AnalyzerBuildStep {
             return null;
         }
 
-        // The app's compiled classes live in the build output directory during augmentation.
+        // The app's compiled classes live in the build output directory during augmentation. Resolve
+        // the project root from the ApplicationModel's app artifact (authoritative), falling back to
+        // the process CWD: a build invoked as `mvn -f <module>/pom.xml` from another directory keeps
+        // the caller's CWD, and CWD-relative target/classes would then miss (same class of bug as the
+        // config lookup: observed as used-config=0 and a 19-suspect report on rest-fights).
+        Path projectRoot = model.getAppArtifact() != null && model.getAppArtifact().getResolvedPaths() != null
+                ? model.getAppArtifact().getResolvedPaths().iterator().hasNext()
+                        ? firstExistingProjectRoot(model)
+                        : Path.of("")
+                : Path.of("");
         List<Path> classesDirs = new ArrayList<>();
-        Path mainClasses = Path.of("target", "classes");
+        Path mainClasses = projectRoot.resolve("target/classes");
         if (Files.isDirectory(mainClasses)) {
             classesDirs.add(mainClasses);
         }
-        Path testClasses = Path.of("target", "test-classes");
+        Path testClasses = projectRoot.resolve("target/test-classes");
         if (Files.isDirectory(testClasses)) {
             classesDirs.add(testClasses);
         }
 
         // The app config: read from the conventional location, same as the mojo's default.
-        AppConfigReader appConfig = readAppConfig();
+        AppConfigReader appConfig = readAppConfig(classesDirs);
 
         ExecutorService executor = Executors.newFixedThreadPool(
                 Math.max(2, Runtime.getRuntime().availableProcessors()));
@@ -144,9 +153,47 @@ public final class AnalyzerBuildStep {
         return new AnalyzerReportBuildItem(report);
     }
 
-    private static AppConfigReader readAppConfig() {
+    /**
+     * The project root containing the app being augmented, derived from the ApplicationModel's app
+     * artifact resolved paths (a target/classes directory inside the module), falling back to the
+     * process CWD when the model carries no usable path.
+     */
+    private static Path firstExistingProjectRoot(ApplicationModel model) {
+        for (var p : model.getAppArtifact().getResolvedPaths()) {
+            Path path = p.toAbsolutePath().normalize();
+            // resolved paths may be the module dir itself, target/classes, or a jar
+            if (Files.isDirectory(path)) {
+                if (path.getFileName() != null && path.getFileName().toString().equals("classes")
+                        && path.getParent() != null && path.getParent().getFileName() != null
+                        && path.getParent().getFileName().toString().equals("target")) {
+                    return path.getParent().getParent();
+                }
+                return path;
+            }
+        }
+        return Path.of("");
+    }
+
+    private static AppConfigReader readAppConfig(List<Path> classesDirs) {
+        // Resolve the config from the project root implied by the classes dirs (target/classes ->
+        // target -> root), NOT from the process CWD: during augmentation Maven normally runs with
+        // CWD = module dir, but a build invoked as `mvn -f <module>/pom.xml` from elsewhere keeps
+        // the caller's CWD, and a CWD-relative lookup then silently reads the wrong directory
+        // (observed: used-config dropped to 0 when the bench ran with -f from another repo).
+        Path projectRoot = null;
+        for (Path dir : classesDirs) {
+            Path classes = dir.toAbsolutePath().normalize();
+            if (classes.getNameCount() > 2 && classes.getParent() != null
+                    && classes.getParent().getFileName() != null
+                    && classes.getParent().getFileName().toString().equals("target")) {
+                projectRoot = classes.getParent().getParent();
+                break;
+            }
+        }
         for (String name : List.of("application.properties", "application.yaml", "application.yml")) {
-            Path candidate = Path.of("src", "main", "resources", name);
+            Path candidate = projectRoot != null
+                    ? projectRoot.resolve("src").resolve("main").resolve("resources").resolve(name)
+                    : Path.of("src", "main", "resources", name);
             if (Files.isRegularFile(candidate)) {
                 try {
                     return name.endsWith(".properties")

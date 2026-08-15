@@ -71,7 +71,12 @@ public final class AnnotationAttribution {
             new AnnotationRule("org.eclipse.microprofile.openapi.annotations.", "io.quarkus:quarkus-smallrye-openapi"),
             new AnnotationRule("io.quarkus.qute.", "io.quarkus:quarkus-rest-qute"),
             new AnnotationRule("FILE:application.yml", "io.quarkus:quarkus-config-yaml"),
-            new AnnotationRule("FILE:application.yaml", "io.quarkus:quarkus-config-yaml")
+            new AnnotationRule("FILE:application.yaml", "io.quarkus:quarkus-config-yaml"),
+            // Serialization-only family (TASK-21, ablation-bench evidence): a declared REST serializer
+            // is load-bearing when endpoints return POJOs; removing it builds green but breaks every
+            // POJO endpoint at runtime (fast-jar left with zero serializer artifacts).
+            new AnnotationRule("REST-SERIALIZER:", "io.quarkus:quarkus-rest-jackson"),
+            new AnnotationRule("REST-SERIALIZER:", "io.quarkus:quarkus-resteasy-jackson")
     );
 
     private AnnotationAttribution() {
@@ -219,6 +224,57 @@ public final class AnnotationAttribution {
             String fileName = prefix.substring("FILE:".length());
             return java.nio.file.Files.isRegularFile(java.nio.file.Path.of("src", "main", "resources", fileName))
                     || java.nio.file.Files.isRegularFile(java.nio.file.Path.of("target", "classes", fileName));
+        }
+        if (prefix.startsWith("REST-SERIALIZER:")) {
+            // Serialization-only rule (TASK-21, from the ablation bench): a declared REST-serializer
+            // extension is load-bearing when the app has @Path resource methods returning POJOs
+            // (anything the serializer must convert that is not itself the HTTP machinery). Evidence:
+            // the endpoint return types in the bean index. Not an annotation the extension processes;
+            // the serializer's whole value is converting payloads the endpoints produce.
+            return restEndpointsReturningPojos(index);
+        }
+        return false;
+    }
+
+    /** REST method annotations whose presence marks a method as an endpoint. */
+    private static final List<String> REST_METHOD_ANNOTATIONS = List.of(
+            "jakarta.ws.rs.GET", "jakarta.ws.rs.POST", "jakarta.ws.rs.PUT", "jakarta.ws.rs.DELETE",
+            "jakarta.ws.rs.PATCH", "jakarta.ws.rs.HEAD", "jakarta.ws.rs.OPTIONS");
+
+    /** Types the app returning which need NO serializer (HTTP machinery or primitives). */
+    private static final Set<String> NON_SERIALIZED_RETURNS = Set.of(
+            "void", "boolean", "byte", "char", "short", "int", "long", "float", "double",
+            "java.lang.String", "java.lang.Void",
+            "jakarta.ws.rs.core.Response", "jakarta.ws.rs.core.StreamingOutput",
+            "io.quarkus.rest.runtime.RestResponse", "io.quarkus.resteasy.runtime.ResteasyResponse",
+            // Qute/HTML and ServerSentEvent returns are not Jackson-serialized either
+            "io.quarkus.qute.TemplateInstance",
+            "org.jboss.resteasy.reactive.server.SseInOutEvent");
+
+    /**
+     * TASK-21: whether any {@code @Path}-annotated class has a REST-method whose return type needs a
+     * serializer (a POJO: not a primitive, not String/Void, not the HTTP response machinery). This is
+     * the evidence that a declared REST-serializer extension is load-bearing: the ablation bench
+     * (docs/ABLATION-BENCH.md) showed removing it builds green but leaves the fast-jar with zero
+     * serializer artifacts and every POJO endpoint failing at runtime.
+     */
+    private static boolean restEndpointsReturningPojos(IndexView index) {
+        var pathClasses = index.getAnnotations(DotName.createSimple("jakarta.ws.rs.Path"));
+        for (var ai : pathClasses) {
+            if (ai.target() == null || ai.target().kind() != org.jboss.jandex.AnnotationTarget.Kind.CLASS) {
+                continue;
+            }
+            for (var m : ai.target().asClass().methods()) {
+                boolean isRestMethod = m.annotations().stream().anyMatch(a ->
+                        REST_METHOD_ANNOTATIONS.contains(a.name().toString()));
+                if (!isRestMethod) {
+                    continue;
+                }
+                String ret = m.returnType().name().toString();
+                if (!NON_SERIALIZED_RETURNS.contains(ret)) {
+                    return true; // a POJO (or collection/Uni of one) needs a serializer
+                }
+            }
         }
         return false;
     }
