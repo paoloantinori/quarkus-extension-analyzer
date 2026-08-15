@@ -485,3 +485,28 @@ degrading default behavior.
 - **End-of-unit review:** /simplify n/a (docs + bench script, no product code);
   /code-review = the two structural verifications are artifact-inspected, not
   inferred; pom restoration verified on every run.
+
+### Work unit 13, 2026-08-15, TASK-21 + TASK-22: the two ablation-filed rules implemented
+
+- **TASK-21 (serialization-only):** REST-SERIALIZER rule in AnnotationAttribution:
+  fires when a @Path class has a REST method returning a POJO (not primitive/
+  String/Void/HTTP-machinery), crediting quarkus-rest-jackson and
+  quarkus-resteasy-jackson. Verified both directions: fires on cache-quickstart
+  (POJO endpoints); correctly silent on jwt-quickstart (String-only endpoints,
+  where ablation showed the serializer is genuinely removable).
+- **Real bug found and fixed during regression:** the extension build step
+  resolved target/classes and the app config relative to the PROCESS CWD. Under
+  `mvn -f <module>/pom.xml` from a foreign dir this silently analyzed the wrong
+  project (used-config 10->0, suspects 3->19 on rest-fights). Now the project
+  root is derived from the ApplicationModel app-artifact resolved paths;
+  verified identical results (9/10/2/3) via cd-based AND -f-based invocations.
+- **TASK-22 (reactive driver):** dependency-join rule: hibernate-reactive(-panache)
+  declared AND used + exactly ONE quarkus-reactive-*-client suspect -> credit.
+  Multiple reactive clients stay suspect (ambiguity). Verified on rest-heroes:
+  reactive-pg-client flipped to used with ablation-citing evidence.
+- **Refactor:** flip logic extracted to a shared flipSuspects helper (annotation
+  rules and the join path use the same flip+summary-recompute).
+- Tests: 96/96 reactor green. End-of-unit: /simplify applied (the duplicated
+  flip block was the cleanup; shared helper); /code-review = both rules verified
+  on their bench evidence cases, conservative guards present (declared-extension,
+  single-client), no over-credit observed on any of the 21 validated apps.

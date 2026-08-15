@@ -114,7 +114,12 @@ public final class AnnotationAttribution {
         }
 
         if (presentAnnotationPrefixes.isEmpty()) {
-            return report; // no annotation-consumer signal to apply
+            // No annotation family matched; the TASK-22 reactive-driver join may still resolve.
+            Map<String, String> joinOnly = reactiveDriverJoin(report);
+            if (joinOnly.isEmpty()) {
+                return report;
+            }
+            return flipSuspects(report, joinOnly);
         }
 
         // Build the updated report: flip matching suspects to used-bytecode.
@@ -128,32 +133,40 @@ public final class AnnotationAttribution {
             }
         }
 
+        // TASK-22 reactive-driver join (may add credits even when no annotation rule fired).
+        resolvedByGa.putAll(reactiveDriverJoin(report));
+
         if (resolvedByGa.isEmpty()) {
             return report;
         }
 
+        return flipSuspects(report, resolvedByGa);
+    }
+
+    /**
+     * Flips each suspect row named in {@code credits} to {@code used-bytecode} with the given
+     * evidence, recomputes the summaries, and returns the new report. Shared by the annotation-rule
+     * path and the reactive-driver join path.
+     */
+    private static AnalysisReport flipSuspects(AnalysisReport report, Map<String, String> credits) {
         List<ExtensionReport> updatedRows = new ArrayList<>();
         for (ExtensionReport r : report.dependencies()) {
-            if (r.verdict() == Verdict.SUSPECT && resolvedByGa.containsKey(r.ga())) {
-                // Flip to used-bytecode with the annotation-consumer evidence.
+            if (r.verdict() == Verdict.SUSPECT && credits.containsKey(r.ga())) {
                 List<String> vocab = new ArrayList<>(r.vocabularyEvidence());
-                vocab.add(resolvedByGa.get(r.ga()));
+                vocab.add(credits.get(r.ga()));
                 updatedRows.add(new ExtensionReport(r.ga(), r.quarkusExtension(), Verdict.USED_BYTECODE,
                         r.configInherited(), r.configRoots(), r.configMatchedKeys(), r.configSource(),
                         r.inheritedRoots(), true, r.capabilityEvidence(),
-                        "resolved by annotation-consumer signal: " + resolvedByGa.get(r.ga()),
+                        "resolved by annotation-consumer signal: " + credits.get(r.ga()),
                         r.bytecodeViaTransitiveApi(), r.valueRuleEvidence(), r.sharedReferencedJars(), vocab));
             } else {
                 updatedRows.add(r);
             }
         }
-
-        // Recompute the summary.
         Map<Boolean, List<ExtensionReport>> byExtension = updatedRows.stream()
                 .collect(java.util.stream.Collectors.partitioningBy(ExtensionReport::quarkusExtension));
         AnalysisReport.Summary extensions = AnalysisReport.Summary.of(byExtension.get(true));
         AnalysisReport.Summary plainJars = AnalysisReport.Summary.of(byExtension.get(false));
-
         return new AnalysisReport(report.applicationArtifact(), report.generatedAt(), updatedRows,
                 report.ignoreRecommendations(), extensions, plainJars,
                 AnalysisReport.Summary.combine(extensions, plainJars));
@@ -277,6 +290,35 @@ public final class AnnotationAttribution {
             }
         }
         return false;
+    }
+
+    /**
+     * TASK-22 dependency-join rule (ablation-bench evidence): when Hibernate Reactive (or its
+     * Panache variant) is declared AND classified used, a declared {@code quarkus-reactive-*-client}
+     * suspect is load-bearing: Hibernate Reactive cannot build its persistence unit without a
+     * reactive SQL driver (the ablation of quarkus-reactive-pg-client on rest-heroes failed exactly
+     * there). Conservative like every other attribution: credits ONLY when exactly ONE reactive
+     * client is declared (multiple declared = ambiguous which one is the driver; stays suspect).
+     */
+    private static Map<String, String> reactiveDriverJoin(AnalysisReport report) {
+        Map<String, String> credits = new LinkedHashMap<>();
+        boolean hibernateReactiveUsed = report.dependencies().stream().anyMatch(r ->
+                r.quarkusExtension() && r.verdict() != Verdict.SUSPECT
+                        && (r.ga().equals("io.quarkus:quarkus-hibernate-reactive")
+                                || r.ga().equals("io.quarkus:quarkus-hibernate-reactive-panache")));
+        if (!hibernateReactiveUsed) {
+            return credits;
+        }
+        List<ExtensionReport> reactiveSuspects = report.dependencies().stream()
+                .filter(r -> r.quarkusExtension() && r.verdict() == Verdict.SUSPECT
+                        && r.ga().startsWith("io.quarkus:quarkus-reactive-") && r.ga().endsWith("-client"))
+                .toList();
+        if (reactiveSuspects.size() == 1) {
+            String ga = reactiveSuspects.get(0).ga();
+            credits.put(ga, "reactive-driver: hibernate-reactive is used and requires exactly this "
+                    + "reactive SQL client (ablation-verified: removal fails the persistence-unit build)");
+        }
+        return credits;
     }
 
     private static Set<String> collectDeclaredExtensionGas(ApplicationModel model) {
