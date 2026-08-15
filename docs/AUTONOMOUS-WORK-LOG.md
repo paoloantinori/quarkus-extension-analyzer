@@ -510,3 +510,34 @@ degrading default behavior.
   flip block was the cleanup; shared helper); /code-review = both rules verified
   on their bench evidence cases, conservative guards present (declared-extension,
   single-client), no over-credit observed on any of the 21 validated apps.
+
+### Work unit 14, 2026-08-15, TASK-23: disambiguating the last ambiguity (multi-serializer / multi-driver)
+
+Empirical phase first (what does Quarkus itself do?):
+- TWO SERIALIZERS declared (cache-qs + resteasy-jsonb alongside rest-jackson): the build
+  FAILS at CapabilityAggregationStep — "Please make sure there is only one provider of the
+  following capabilities". CONCLUSION: the serializer ambiguity is IMPOSSIBLE in a buildable
+  app; no fix needed beyond documentation. The single-declared-serializer rule (TASK-21)
+  already covers every app that actually builds.
+- TWO REACTIVE CLIENTS declared (rest-heroes + reactive-mysql alongside -pg, no explicit
+  config): the build FAILS — "The datasource must be configured for Hibernate Reactive".
+  CONCLUSION: a buildable multi-client app necessarily carries an explicit db-kind, which IS
+  the disambiguation authority.
+
+Implemented:
+1. Extension-form join extended (TASK-23): multiple reactive suspects + db-kind present ->
+   credit ONLY the client whose family matches the kind; others stay suspect (removable dead
+   weight). No db-kind + multiple -> all stay suspect (the app cannot build anyway).
+   reactiveFamilyOf maps the 6 known client artifacts to their db-kind families.
+2. value-rules.txt gains the reactive client family on the same db-kind selector (both
+   forms benefit; suppression prevents blanket credit for absent siblings).
+
+Residual imprecision found and FILED, not hacked (TASK-23 backlog): when two clients AND
+db-kind are present, the config signal credits BOTH used-config via an own-root TIE on
+quarkus.datasource. (the TASK-7 suppression covers inherited credit only, not own-root
+ties). Fixing it means touching the classifyExtension priority chain — a core change that
+deserves its own regression cycle across the 21-app matrix, not an end-of-session edit.
+The join path (suspect-state) IS precise; the imprecision is confined to the own-root tie.
+
+Bench poms/config restored clean (verified 0 analyzer refs, 0 mysql, 0 db-kind).
+96/96 tests green.

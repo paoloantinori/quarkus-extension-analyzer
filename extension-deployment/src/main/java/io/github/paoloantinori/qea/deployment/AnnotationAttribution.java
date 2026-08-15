@@ -93,29 +93,32 @@ public final class AnnotationAttribution {
      * @return a new report with annotation-consumer suspects resolved where the bean index confirms use
      */
     public static AnalysisReport apply(AnalysisReport report, IndexView beanIndex, ApplicationModel model) {
+        return apply(report, beanIndex, model, Set.of());
+    }
+
+    /**
+     * @param dbKindValues the {@code quarkus.datasource[.<name>].db-kind} values present in the app
+     *                    config (any profile), used by the TASK-23 disambiguation when multiple
+     *                    reactive clients are declared: the client matching the configured kind is
+     *                    credited, the others stay suspect. Empty set = no explicit db-kind.
+     */
+    public static AnalysisReport apply(AnalysisReport report, IndexView beanIndex, ApplicationModel model,
+            Set<String> dbKindValues) {
         Set<String> declaredExtensionGas = collectDeclaredExtensionGas(model);
 
         // Collect which annotation prefixes are present in the bean index.
         Set<String> presentAnnotationPrefixes = new java.util.TreeSet<>();
         for (var rule : RULES) {
-            DotName probe = DotName.createSimple(rule.annotationPrefix() + "X"); // probe a likely class
-            // The index may not have the exact prefix; check known annotations directly.
-            // Jandex getAnnotations returns annotations by exact DotName, not prefix.
-            // Instead, check all known annotations in the index for a prefix match.
-        }
-        // For each annotation known in the index, check if any rule's prefix matches.
-        for (var rule : RULES) {
-            // Check if any annotation in the index starts with the rule's prefix.
-            // Jandex doesn't expose "all annotations by prefix" directly, but we can check common
-            // annotation types for each rule's family.
+            // Jandex getAnnotations returns annotations by exact DotName, not prefix; probe the
+            // known representative types per family instead.
             if (annotationFamilyPresent(beanIndex, rule.annotationPrefix())) {
                 presentAnnotationPrefixes.add(rule.annotationPrefix());
             }
         }
 
         if (presentAnnotationPrefixes.isEmpty()) {
-            // No annotation family matched; the TASK-22 reactive-driver join may still resolve.
-            Map<String, String> joinOnly = reactiveDriverJoin(report);
+            // No annotation family matched; the reactive-driver join may still resolve.
+            Map<String, String> joinOnly = reactiveDriverJoin(report, dbKindValues);
             if (joinOnly.isEmpty()) {
                 return report;
             }
@@ -134,7 +137,7 @@ public final class AnnotationAttribution {
         }
 
         // TASK-22 reactive-driver join (may add credits even when no annotation rule fired).
-        resolvedByGa.putAll(reactiveDriverJoin(report));
+        resolvedByGa.putAll(reactiveDriverJoin(report, dbKindValues));
 
         if (resolvedByGa.isEmpty()) {
             return report;
@@ -293,14 +296,25 @@ public final class AnnotationAttribution {
     }
 
     /**
-     * TASK-22 dependency-join rule (ablation-bench evidence): when Hibernate Reactive (or its
-     * Panache variant) is declared AND classified used, a declared {@code quarkus-reactive-*-client}
-     * suspect is load-bearing: Hibernate Reactive cannot build its persistence unit without a
-     * reactive SQL driver (the ablation of quarkus-reactive-pg-client on rest-heroes failed exactly
-     * there). Conservative like every other attribution: credits ONLY when exactly ONE reactive
-     * client is declared (multiple declared = ambiguous which one is the driver; stays suspect).
+     * TASK-22 + TASK-23 dependency-join rule (ablation-bench evidence): when Hibernate Reactive (or
+     * its Panache variant) is declared AND classified used, a declared {@code
+     * quarkus-reactive-*-client} suspect is load-bearing: Hibernate Reactive cannot build its
+     * persistence unit without a reactive SQL driver (the ablation of quarkus-reactive-pg-client on
+     * rest-heroes failed exactly there).
+     *
+     * <p>Disambiguation when MULTIPLE reactive clients are declared (TASK-23): the empirical bench
+     * proved two things. First, two clients with no explicit datasource config make the build FAIL
+     * ("The datasource must be configured for Hibernate Reactive") — Quarkus refuses to guess. So a
+     * buildable multi-client app necessarily carries an explicit {@code db-kind}, which IS the
+     * authority for which client is the driver. When a {@code db-kind} value is present, the client
+     * whose family matches it is credited and the others stay suspect (they are genuinely removable
+     * dead weight, per the same ablation logic). When multiple clients are declared and NO db-kind
+     * is present, all stay suspect: either the app does not build (moot) or the config arrived by a
+     * path this join cannot see, and ambiguity must not manufacture a verdict.
+     *
+     * @param dbKindValues the db-kind values from the app config (any profile), empty when none
      */
-    private static Map<String, String> reactiveDriverJoin(AnalysisReport report) {
+    private static Map<String, String> reactiveDriverJoin(AnalysisReport report, Set<String> dbKindValues) {
         Map<String, String> credits = new LinkedHashMap<>();
         boolean hibernateReactiveUsed = report.dependencies().stream().anyMatch(r ->
                 r.quarkusExtension() && r.verdict() != Verdict.SUSPECT
@@ -317,8 +331,47 @@ public final class AnnotationAttribution {
             String ga = reactiveSuspects.get(0).ga();
             credits.put(ga, "reactive-driver: hibernate-reactive is used and requires exactly this "
                     + "reactive SQL client (ablation-verified: removal fails the persistence-unit build)");
+            return credits;
+        }
+        if (reactiveSuspects.size() > 1 && !dbKindValues.isEmpty()) {
+            for (ExtensionReport r : reactiveSuspects) {
+                String family = reactiveFamilyOf(r.ga());
+                if (family != null && dbKindValues.stream().anyMatch(k -> k.equalsIgnoreCase(family))) {
+                    credits.put(r.ga(), "reactive-driver: hibernate-reactive is used and db-kind="
+                            + family + " selects exactly this reactive SQL client; the other declared "
+                            + "reactive clients are removable dead weight");
+                }
+            }
         }
         return credits;
+    }
+
+    /**
+     * The db-kind family a reactive client serves ({@code postgresql} for
+     * {@code quarkus-reactive-pg-client}, {@code mysql}/{@code mariadb} for
+     * {@code quarkus-reactive-mysql-client}, ...), or {@code null} for an unknown artifact.
+     */
+    private static String reactiveFamilyOf(String ga) {
+        String artifact = ga.substring(ga.lastIndexOf(':') + 1);
+        if (artifact.equals("quarkus-reactive-pg-client")) {
+            return "postgresql";
+        }
+        if (artifact.equals("quarkus-reactive-mysql-client")) {
+            return "mysql";
+        }
+        if (artifact.equals("quarkus-reactive-mariadb-client")) {
+            return "mariadb";
+        }
+        if (artifact.equals("quarkus-reactive-mssql-client")) {
+            return "mssql";
+        }
+        if (artifact.equals("quarkus-reactive-db2-client")) {
+            return "db2";
+        }
+        if (artifact.equals("quarkus-reactive-oracle-client")) {
+            return "oracle";
+        }
+        return null;
     }
 
     private static Set<String> collectDeclaredExtensionGas(ApplicationModel model) {

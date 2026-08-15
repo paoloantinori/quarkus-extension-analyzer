@@ -27,6 +27,21 @@ quarkus.datasource.{name}.db-kind|mysql|io.quarkus:quarkus-jdbc-mysql
 quarkus.datasource.{name}.db-kind|oracle|io.quarkus:quarkus-jdbc-oracle
 quarkus.datasource.{name}.db-kind|postgresql|io.quarkus:quarkus-jdbc-postgresql
 
+# --- TASK-23: same selector, the REACTIVE client family (hibernate-reactive stack) -----------------
+# Same authority as the JDBC family above (db-kind selects the driver), covering the reactive SQL
+# clients. The family-suppression mechanism then prevents the blanket quarkus.datasource.* root
+# credit for NON-matching siblings when the selector key is present (the multi-client ambiguity:
+# two reactive clients + db-kind=postgresql must credit only -pg-, leaving -mysql- suspect as
+# removable dead weight -- verified empirically: two clients with no db-kind make the build FAIL,
+# so a buildable multi-client app always carries the explicit kind). Artifact suffixes verified
+# against the Quarkus BOM: quarkus-reactive-{pg,mysql,mariadb,mssql,db2,oracle}-client.
+quarkus.datasource.{name}.db-kind|postgresql|io.quarkus:quarkus-reactive-pg-client
+quarkus.datasource.{name}.db-kind|mysql|io.quarkus:quarkus-reactive-mysql-client
+quarkus.datasource.{name}.db-kind|mariadb|io.quarkus:quarkus-reactive-mariadb-client
+quarkus.datasource.{name}.db-kind|mssql|io.quarkus:quarkus-reactive-mssql-client
+quarkus.datasource.{name}.db-kind|db2|io.quarkus:quarkus-reactive-db2-client
+quarkus.datasource.{name}.db-kind|oracle|io.quarkus:quarkus-reactive-oracle-client
+
 # --- quarkus.container-image.builder -> quarkus-container-image-<value> (SECOND-BENCH.md) -----------
 # Verified against the Quarkus BOM: quarkus-container-image-{buildpack,docker,jib,openshift,podman} are
 # five DISTINCT artifacts. podman is its own extension, not an alias of docker (the open question the

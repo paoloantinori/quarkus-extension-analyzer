@@ -35,6 +35,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -128,8 +129,15 @@ public final class AnalyzerBuildStep {
         // The bean index (ArC's Jandex index of the app) knows which annotations the app uses.
         // A small curated mapping credits the extension that processes each known annotation family,
         // resolving the annotation-consumer false positives the mojo cannot (hibernate-validator
-        // via @NotNull, scheduler via @Scheduled, smallrye-jwt via @Inject JsonWebToken).
-        report = AnnotationAttribution.apply(report, beanArchiveIndex.getIndex(), model);
+        // via @NotNull, scheduler via @Scheduled, smallrye-jwt via @Inject JsonWebToken). The
+        // db-kind values from the app config feed the TASK-23 multi-reactive-client disambiguation.
+        Set<String> dbKindValues = new java.util.TreeSet<>();
+        for (var e : appConfig.valuesByKey().entrySet()) {
+            if (e.getKey().endsWith(".db-kind") || e.getKey().equals("quarkus.datasource.db-kind")) {
+                dbKindValues.addAll(e.getValue());
+            }
+        }
+        report = AnnotationAttribution.apply(report, beanArchiveIndex.getIndex(), model, dbKindValues);
 
         // Emit the report via JBoss Logging (the canonical Quarkus build-time log channel,
         // visible in the build output; System.out may be redirected by the build harness).
