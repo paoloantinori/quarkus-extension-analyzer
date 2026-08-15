@@ -437,3 +437,32 @@ degrading default behavior.
 - **DoD:** #1 repro (the IT), #2 fix verified, #3 no regressions; #4 (unit
   test for the isolation) n/a: the isolation is packaging-level (shade), its
   proof IS the camel repro, which is exercised end-to-end.
+
+### Work unit 11, 2026-08-15, Extended validation matrix: 14 more apps (10 quickstarts + 4 super-heroes modules)
+
+**Mojo results (shaded form) across 14 new apps:**
+
+| App | Profile | Ext suspects |
+|-----|---------|-------------|
+| security-openid-connect-qs | OIDC | 0 |
+| security-jwt-qs | JWT | 2 (rest, rest-jackson: annotation-consumer pattern) |
+| security-jpa-qs | security+JPA | 0 |
+| hibernate-orm-panache-qs | classic ORM+Panache | 0 |
+| kafka-streams-qs | Kafka Streams | 2 (rest, rest-jackson: same pattern) |
+| redis-qs | Redis | 0 |
+| quartz-qs | Quartz+Flyway | 0 |
+| spring-di-qs | Spring DI compat | 0 |
+| websockets-qs | WebSocket | 0 |
+| micrometer-qs | Micrometer | 0 |
+| rest-villains | full app | 3 (info, otel, rest-qute: known patterns) |
+| grpc-locations | gRPC+YAML | 3 (config-yaml, info, otel) |
+| rest-narration | AI/langchain4j | 3 (info, otel, smallrye-health = probable true positive) |
+| event-statistics | Kafka+web | 2 (info, otel) |
+
+**Highlights:**
+- langchain4j-openai (Quarkiverse AI extension) correctly used-bytecode: Quarkiverse extensions handled out of the box.
+- quartz, flyway, spring-di, redis, websockets, kafka-streams, oidc, jpa-security: all 0 suspects.
+- Recurring suspects are the documented patterns (runtime-only info/otel; rest-qute and config-yaml have extension-form rules; rest-jackson is serialization-only).
+- No crashes, no LinkageError, no new false verdicts across 14 diverse apps.
+
+**Cumulative validation matrix: 21 real Quarkus applications** (3 original benches + 3 quickstarts + camel IT + 10 quickstarts + 4 super-heroes modules) spanning REST classic/reactive, gRPC, Kafka/Streams, MongoDB/PG/JDBC, Redis, Quartz, Flyway/Liquibase, OIDC/JWT/JPA security, Spring DI, WebSockets, Qute, Micrometer, OpenTelemetry, config YAML, AI/langchain4j, Camel build-infra.
