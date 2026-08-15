@@ -466,3 +466,22 @@ degrading default behavior.
 - No crashes, no LinkageError, no new false verdicts across 14 diverse apps.
 
 **Cumulative validation matrix: 21 real Quarkus applications** (3 original benches + 3 quickstarts + camel IT + 10 quickstarts + 4 super-heroes modules) spanning REST classic/reactive, gRPC, Kafka/Streams, MongoDB/PG/JDBC, Redis, Quartz, Flyway/Liquibase, OIDC/JWT/JPA security, Spring DI, WebSockets, Qute, Micrometer, OpenTelemetry, config YAML, AI/langchain4j, Camel build-infra.
+
+### Work unit 12, 2026-08-15, TASK-21 ablation bench: empirical ground truth for recurring suspects
+
+- **What:** 14 ablations across 6 apps (remove one suspect dep, mvn package,
+  inspect the artifact, restore pom backup-first; every pom verified restored).
+  Full data + method in docs/ABLATION-BENCH.md.
+- **Numbers:** 9 false positives, 5 true suspects (36% precision on the
+  recurrence-hard residual; the broader matrix had most apps at zero suspects).
+  Extension form already resolves 6 of the 9 FPs (config-yaml, rest-qute,
+  quarkus-rest rules). Two unresolved FP families filed: TASK-21
+  (serialization-only rest-jackson) and TASK-22 (reactive-pg-client).
+- **Methodological finding:** mvn package success is NOT proof of removability
+  on Quarkus. Native-method templates (@CheckedTemplate) and provided
+  serializers (rest-jackson) both produce builds that pass with runtime-broken
+  results (verified structurally: unimplemented native Template method; zero
+  jackson jars in the ablated fast-jar). Any removal workflow must runtime-smoke.
+- **End-of-unit review:** /simplify n/a (docs + bench script, no product code);
+  /code-review = the two structural verifications are artifact-inspected, not
+  inferred; pom restoration verified on every run.
