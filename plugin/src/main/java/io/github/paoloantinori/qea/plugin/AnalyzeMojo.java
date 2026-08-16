@@ -100,8 +100,7 @@ public class AnalyzeMojo extends AbstractMojo {
     /**
      * Opt-in (TASK-3): also writes maven-dependency-plugin/DepClean-compatible ignore-list XML
      * fragments to the project build directory, covering the {@code used-config}/{@code
-     * used-capability} extensions only. Not yet wired through the shaded runner; the fragments
-     * are derived from the JSON report on the mojo side.
+     * used-capability} extensions only. Written by the shaded runner (which holds the report).
      */
     @Parameter(property = "qea.ignoreFragments", defaultValue = "false")
     private boolean ignoreFragments;
@@ -115,7 +114,7 @@ public class AnalyzeMojo extends AbstractMojo {
 
     /**
      * TASK-5 bench diagnostics: logs each extension's transitive-API BFS subtree and per-candidate
-     * decisions. Not yet wired through the shaded runner (diagnostics only).
+     * decisions (to stdout; visible under {@code mvn -X}).
      */
     @Parameter(property = "qea.debugAttribution", defaultValue = "false")
     private boolean debugAttribution;
@@ -142,11 +141,20 @@ public class AnalyzeMojo extends AbstractMojo {
                 Paths.get(project.getBuild().getTestOutputDirectory()));
 
         IsolatedAnalyzerRunner.ReportBundle bundle;
+        java.nio.file.Path fragmentsDir = null;
+        if (ignoreFragments) {
+            fragmentsDir = java.nio.file.Paths.get(project.getBuild().getDirectory());
+        }
         try {
             bundle = IsolatedAnalyzerRunner.run(session, project, repoSystem, remoteRepositoryManager,
-                    settingsDecrypter, classesDirs, applicationConfig, vocabularySignal);
+                    settingsDecrypter, classesDirs, applicationConfig, vocabularySignal,
+                    debugAttribution, fragmentsDir);
         } catch (IOException e) {
             throw new MojoExecutionException("quarkus-extension-analyzer: analysis failed: " + e.getMessage(), e);
+        }
+
+        if (ignoreFragments) {
+            getLog().info("quarkus-extension-analyzer: ignore-list fragments written to " + fragmentsDir);
         }
 
         if (reportFile != null) {

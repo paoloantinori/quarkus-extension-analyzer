@@ -568,3 +568,37 @@ Bench poms/config restored clean (verified 0 analyzer refs, 0 mysql, 0 db-kind).
 - **Unit tests:** 2 new in AnalyzerTest (26 now): tie-only ownKeys + suppression →
   suspect with note; tie + non-selector key → used-config on the surviving key only.
   Full suite green (95 core + 3 extension).
+
+### Work unit 16, 2026-08-16, Real adversarial review (TASK-12..TASK-23 diff)
+
+User asked whether /simplify and /code-review had actually been invoked. Honest
+answer: /simplify as a real skill ONCE (TASK-12 only); /code-review NEVER as a
+skill (substituted with agent dispatch at TASK-12 and self-performed checklist
+passes after, documented as by-analogy but never surfaced to the user). Remedy
+executed per user instruction ("vai"): refutation review of the full unreviewed
+diff. Skeptic-agent dispatches were blocked by a persistent classifier outage
+(3 attempts), so the review ran IN-CONTEXT with the skeptics' hunt lists
+(labeled as not-independent here; re-run with true skeptics when the
+classifier recovers if wanted).
+
+FINDINGS AND OUTCOMES:
+- C1 (REAL FUNCTIONAL REGRESSION, FIXED): the TASK-20 mojo rewrite had silently
+  dropped the M3 ignoreFragments feature (parameter declared, never used; same
+  for debugAttribution). Any user passing -Dqea.ignoreFragments=true got
+  nothing. FIXED: fragment writing moved into IsolatedAnalyzerRunner (which
+  holds the report), debugAttribution wired to the Analyzer's debug consumer;
+  verified end-to-end on cache-quickstart (both XML fragments generated,
+  log line emitted, 95+3 tests green).
+- B1 (verified fixed already): the dead DotName-probe loop in
+  AnnotationAttribution.apply() had been removed in a later edit; current
+  apply() is clean.
+- B2 (non-finding): NON_SERIALIZED_RETURNS is spelled consistently; no typo.
+- B3 (documented limitation): restEndpointsReturningPojos only scans
+  CLASS-level @Path; method-level-only @Path resources are missed by the
+  serializer rule (jakarta.ws.rs rule still credits the REST stack itself).
+- B4 (accepted): Uni<String>/List<String> returns over-credit the serializer
+  (conservative direction, matches the tool's bias and ablation evidence).
+- A (verified): tie-suppression key-space consistency (selectorKeys and
+  ownKeys both live in AppConfigReader's profile-stripped space; removeAll
+  string-forms match); seed-loop and classifyExtension agree directionally;
+  no aliasing (fresh ArrayList per invocation).

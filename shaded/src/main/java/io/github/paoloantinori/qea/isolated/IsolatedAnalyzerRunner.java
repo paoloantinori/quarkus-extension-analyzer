@@ -80,21 +80,31 @@ public final class IsolatedAnalyzerRunner {
      * @param classesDirs     the compiled-classes directories (target/classes, target/test-classes)
      * @param applicationConfig the application config file, or null for the default discovery
      * @param vocabularySignal TASK-8 opt-in signal flag
+     * @param debugAttribution TASK-5 diagnostics: when {@code true}, the analyzer logs the
+     *                        transitive-API BFS trace (visible under {@code mvn -X})
+     * @param fragmentsDir    TASK-3 opt-in: when non-null, ignore-list XML fragments
+     *                        (maven-dependency-plugin + DepClean) are written here
      * @return the serialized report bundle (JSON + text) for the mojo shell to consume
      * @throws IOException on model resolution or analysis failure (message carries the user guidance)
      */
     public static ReportBundle run(MavenSession session, MavenProject project, RepositorySystem repoSystem,
             RemoteRepositoryManager remoteRepoManager, SettingsDecrypter settingsDecrypter,
-            List<Path> classesDirs, File applicationConfig, boolean vocabularySignal) throws IOException {
+            List<Path> classesDirs, File applicationConfig, boolean vocabularySignal,
+            boolean debugAttribution, Path fragmentsDir) throws IOException {
         ApplicationModel model = resolveModel(session, project, repoSystem, remoteRepoManager, settingsDecrypter);
         AppConfigReader appConfig = readAppConfig(project, applicationConfig);
         ExecutorService executor = Executors.newFixedThreadPool(
                 Math.max(2, Runtime.getRuntime().availableProcessors()));
         AnalysisReport report;
         try {
-            report = new Analyzer(executor, null).analyze(model, classesDirs, appConfig, vocabularySignal);
+            report = new Analyzer(executor, debugAttribution ? System.out::println : null)
+                    .analyze(model, classesDirs, appConfig, vocabularySignal);
         } finally {
             executor.shutdown();
+        }
+        if (fragmentsDir != null) {
+            io.github.paoloantinori.qea.plugin.report.IgnoreFragments
+                    .writeFragments(report.ignoreRecommendations(), fragmentsDir);
         }
         return new ReportBundle(Reporter.toJson(report), Reporter.toText(report));
     }
