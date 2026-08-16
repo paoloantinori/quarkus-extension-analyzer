@@ -1001,3 +1001,20 @@ true again); shaded pom comments de-duplicated and made accurate.
 
 Verification: full reactor BUILD SUCCESS, 158 tests (150 core + 3 runner +
 2 shaded-relocation IT + 3 adapter).
+
+### Work unit 27, 2026-08-17, Post-TASK-28 mojo bench sweep (final acceptance)
+
+Mojo form across three more quickstart shapes (compile + analyze, no pom
+changes): validation-quickstart (0 extension suspects; rest-jackson credited
+by the annotation-consumer pass), scheduler-quickstart (0), grpc-plain-text
+(0). Combined with units 25-26: the mojo form now resolves the
+annotation-consumer families the extension form resolves, on every shape
+bench-marked this session (super-heroes fresh heroes/fights, resteasy-client,
+validation, scheduler, grpc). No false positives observed on any sweep.
+
+Night session total: 7 work units (22-27 + TASK-26 in unit 21), 9 commits,
+TASK-24/25/26/27/28 completed in backlog, 158 tests green (from 98 at
+session start), 5 phantom-name bugs found and fixed (RegisterRestClient
+FQCN, smallrye FT probe pair, mariadb reactive GA, the shade-plugin literal
+mangling class), 1 architecture change (engine to core, two shells), 1 bench
+workspace root-caused as damaged and re-established on a fresh clone.
