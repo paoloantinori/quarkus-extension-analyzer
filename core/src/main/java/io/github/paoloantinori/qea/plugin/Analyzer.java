@@ -233,8 +233,18 @@ public final class Analyzer {
             // TASK-7: a suppressed inherited signal must not seed the capability join either -- the whole
             // point of suppression is that the blanket family root cannot tell this GA apart from its
             // siblings, so it must not count as "used" for ANY downstream purpose, not just the report row.
+            // TASK-23: likewise an own-root TIE earned purely on the family's selector key (two reactive
+            // clients both credited quarkus.datasource.db-kind); only keys OUTSIDE the selector survive.
             boolean viaInheritance = inheritedKeysByGa.containsKey(gaKey) && !valueRuleSuppressions.containsKey(gaKey);
-            if (!keysWonByOwner.getOrDefault(gaKey, List.of()).isEmpty()
+            boolean viaOwnKeys;
+            ValueRules.Suppression seedSuppression = valueRuleSuppressions.get(gaKey);
+            if (seedSuppression != null) {
+                viaOwnKeys = keysWonByOwner.getOrDefault(gaKey, List.of()).stream()
+                        .anyMatch(k -> !seedSuppression.selectorKeys().contains(k));
+            } else {
+                viaOwnKeys = !keysWonByOwner.getOrDefault(gaKey, List.of()).isEmpty();
+            }
+            if (viaOwnKeys
                     || viaInheritance
                     || valueRuleMatches.containsKey(gaKey)
                     || bytecodeUsedByGa.getOrDefault(gaKey, false)) {
@@ -688,7 +698,8 @@ public final class Analyzer {
             ValueRules.Suppression suppression, List<String> vocabularyEvidence) {
         String gaKey = ga(d);
 
-        List<String> ownKeys = keysWonByOwner.getOrDefault(gaKey, List.of());
+        List<String> ownKeysUnfiltered = keysWonByOwner.getOrDefault(gaKey, List.of());
+        List<String> ownKeys = ownKeysUnfiltered;
         List<String> inheritedKeys = inheritedKeysByGa.get(gaKey);
         // CapabilityJoin only records GAs newly added on top of the initially-used seed set, so a hit
         // here already implies this extension was not used by config or bytecode.
@@ -697,6 +708,16 @@ public final class Analyzer {
         // whose selector key(s) are present in the app config, but no value selected THIS GA -- the
         // blanket inherited signal must not be trusted for it, verdict falls back to later signals.
         boolean inheritanceSuppressed = suppression != null;
+        // TASK-23: the same distrust applies to an OWN-ROOT TIE earned purely on the family's selector
+        // key. When two family members both claim the family root (the two reactive clients on
+        // quarkus.datasource.), RootAttributor's tie rule credits the selector key to BOTH, and the
+        // ownKeys branch below would fire for the non-selected sibling before valueMatch is ever
+        // consulted. Suppress ONLY the selector keys from the own credit: independent keys under the
+        // same root (a real quarkus.datasource.jdbc.url) are genuine use and must survive.
+        if (suppression != null) {
+            ownKeys = new ArrayList<>(ownKeys);
+            ownKeys.removeAll(suppression.selectorKeys());
+        }
 
         Verdict verdict;
         boolean inherited = false;

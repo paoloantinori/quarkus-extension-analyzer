@@ -538,4 +538,53 @@ class AnalyzerTest {
         assertThat(row.verdict()).isEqualTo(Verdict.SUSPECT);
         assertThat(row.valueRuleEvidence()).isNull();
     }
+
+    // --- TASK-23: own-root tie suppression on the family selector key -----------------------------------
+
+    /**
+     * TASK-23: when two family members both claim the family root, RootAttributor's tie rule credits
+     * the selector key to BOTH. A suppression (the key is present, the value selected the sibling)
+     * must remove the selector key from the OWN credit: with no other own key, the row falls through
+     * to SUSPECT with the suppression note (this is the two-reactive-clients + db-kind case: the
+     * non-matching client is dead weight, not used-config).
+     */
+    @Test
+    void classifyExtensionSuppressesOwnRootTieEarnedOnlyOnTheSelectorKey() {
+        ResolvedDependency dep = extensionDep("io.quarkus", "quarkus-reactive-mysql-client");
+        // the tie credited ONLY the family selector key to this sibling
+        Map<String, List<String>> keysWonByOwner =
+                Map.of("io.quarkus:quarkus-reactive-mysql-client", List.of("quarkus.datasource.db-kind"));
+        ValueRules.Suppression suppression = new ValueRules.Suppression("io.quarkus:quarkus-reactive-mysql-client",
+                "quarkus.datasource.{name}.db-kind", Set.of("quarkus.datasource.db-kind"), Set.of("postgresql"));
+
+        ExtensionReport row = Analyzer.classifyExtension(dep, new ConfigRootProbe.Probe(), keysWonByOwner, Map.of(),
+                new RootInheritance.Result(Map.of(), Set.of()), false, Map.of(), null, List.of(), null, suppression,
+                List.of());
+
+        assertThat(row.verdict()).isEqualTo(Verdict.SUSPECT);
+        assertThat(row.note()).contains("no selecting value matches");
+        assertThat(row.note()).contains("[postgresql]");
+    }
+
+    /**
+     * TASK-23 mirror case: an own-root credit that ALSO includes a non-selector key under the same
+     * root is genuine use (a real datasource setting) and must SURVIVE the suppression — only the
+     * selector key itself is untrustworthy, never the whole root.
+     */
+    @Test
+    void classifyExtensionKeepsOwnRootCreditWhenNonSelectorKeysExistAlongsideTheTie() {
+        ResolvedDependency dep = extensionDep("io.quarkus", "quarkus-reactive-mysql-client");
+        Map<String, List<String>> keysWonByOwner = Map.of("io.quarkus:quarkus-reactive-mysql-client",
+                List.of("quarkus.datasource.db-kind", "quarkus.datasource.mysql.jdbc.url"));
+        ValueRules.Suppression suppression = new ValueRules.Suppression("io.quarkus:quarkus-reactive-mysql-client",
+                "quarkus.datasource.{name}.db-kind", Set.of("quarkus.datasource.db-kind"), Set.of("postgresql"));
+
+        ExtensionReport row = Analyzer.classifyExtension(dep, new ConfigRootProbe.Probe(), keysWonByOwner, Map.of(),
+                new RootInheritance.Result(Map.of(), Set.of()), false, Map.of(), null, List.of(), null, suppression,
+                List.of());
+
+        assertThat(row.verdict()).isEqualTo(Verdict.USED_CONFIG);
+        // the surviving evidence is the NON-selector key only: the tie key must not appear
+        assertThat(row.configMatchedKeys()).containsExactly("quarkus.datasource.mysql.jdbc.url");
+    }
 }

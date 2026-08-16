@@ -323,17 +323,25 @@ public final class AnnotationAttribution {
         if (!hibernateReactiveUsed) {
             return credits;
         }
-        List<ExtensionReport> reactiveSuspects = report.dependencies().stream()
-                .filter(r -> r.quarkusExtension() && r.verdict() == Verdict.SUSPECT
+        List<ExtensionReport> reactiveDeclared = report.dependencies().stream()
+                .filter(r -> r.quarkusExtension()
                         && r.ga().startsWith("io.quarkus:quarkus-reactive-") && r.ga().endsWith("-client"))
                 .toList();
-        if (reactiveSuspects.size() == 1) {
+        List<ExtensionReport> reactiveSuspects = reactiveDeclared.stream()
+                .filter(r -> r.verdict() == Verdict.SUSPECT)
+                .toList();
+        // Single-DECLARED shortcut (not single-suspect): when the app declares exactly one reactive
+        // client total, that one is necessarily the driver. When several are declared, a single
+        // remaining suspect is the LEFTOVER after its siblings were credited elsewhere — crediting it
+        // would be wrong (two clients + db-kind=postgresql leaves mysql as the leftover, and mysql
+        // is dead weight). In the multi-declared case only the db-kind match decides.
+        if (reactiveDeclared.size() == 1 && reactiveSuspects.size() == 1) {
             String ga = reactiveSuspects.get(0).ga();
             credits.put(ga, "reactive-driver: hibernate-reactive is used and requires exactly this "
                     + "reactive SQL client (ablation-verified: removal fails the persistence-unit build)");
             return credits;
         }
-        if (reactiveSuspects.size() > 1 && !dbKindValues.isEmpty()) {
+        if (reactiveDeclared.size() > 1 && !dbKindValues.isEmpty()) {
             for (ExtensionReport r : reactiveSuspects) {
                 String family = reactiveFamilyOf(r.ga());
                 if (family != null && dbKindValues.stream().anyMatch(k -> k.equalsIgnoreCase(family))) {

@@ -1,9 +1,10 @@
 ---
 id: TASK-23
 title: Extend value-rule suppression to own-root tie credits (datasource family)
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-08-15 19:10'
+updated_date: '2026-08-15 19:14'
 labels: []
 dependencies: []
 priority: low

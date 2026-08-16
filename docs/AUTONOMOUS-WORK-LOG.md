@@ -541,3 +541,30 @@ The join path (suspect-state) IS precise; the imprecision is confined to the own
 
 Bench poms/config restored clean (verified 0 analyzer refs, 0 mysql, 0 db-kind).
 96/96 tests green.
+
+### Work unit 15, 2026-08-15, TASK-23 (backlog): own-root tie suppression implemented
+
+- **Fix:** classifyExtension now filters the OWN-ROOT tie credit when a value-rules
+  suppression exists: only the family's selector keys are removed from ownKeys (independent
+  keys under the same root survive — a real quarkus.datasource.jdbc.url is genuine use).
+  The capability-seed loop applies the same filter (a tie-suppressed GA must not seed
+  downstream signals, mirroring the TASK-7 decision).
+- **Join leftover fix:** the reactive-driver single-client shortcut now counts DECLARED
+  clients, not SUSPECT ones: with two clients where one is already used, the remaining
+  suspect is the leftover (dead weight), not "the only driver". Only the db-kind match
+  decides in multi-declared apps.
+- **Root cause of a false regression found:** the mojo initially showed the fix not
+  working; the shaded jar in ~/.m2 was 10 HOURS STALE (several quick "BUILD SUCCESS"
+  installs had not re-shaded). A clean full install refreshed it and the fix verified.
+- **Verification matrix (mojo, fresh jars):**
+  - heroes synthetic two-clients + db-kind=postgresql: pg used-config (selected), mysql
+    SUSPECT with the suppression note naming selector and values seen. THE target case.
+  - heroes original (single client, no db-kind): unchanged behavior.
+  - Apicurio: 7/7/5/5 identical to baseline; the 4 JDBC drivers still selected by their
+    4 named db-kinds with value-rule evidence (no suppression false-firing).
+  - panache + quartz quickstarts (db-kind present, matching driver declared): 0 suspects.
+  - rest-fights (no datasource keys): baseline suspects restored after removing the
+    analyzer dep left from earlier tests (3, not 4 — the 4th was our own extension).
+- **Unit tests:** 2 new in AnalyzerTest (26 now): tie-only ownKeys + suppression →
+  suspect with note; tie + non-selector key → used-config on the surviving key only.
+  Full suite green (95 core + 3 extension).
