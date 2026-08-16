@@ -45,17 +45,13 @@ class AnnotationAttributionTest {
     }
 
     /**
-     * The curated annotation rules cover the triage-confirmed false-positive families:
-     * jakarta.validation.constraints (hibernate-validator), io.quarkus.scheduler.Scheduled (scheduler),
-     * org.eclipse.microprofile.jwt.JsonWebToken (smallrye-jwt), jakarta.ws.rs.Path (resteasy).
-     * This test guards against accidental removal of a rule entry.
+     * Loading {@link AnnotationAttribution} initializes the RULES list (a malformed entry would
+     * fail here), and the family annotation names used by the probes are well-formed DotNames.
+     * This does NOT guard against rule removal or dead probes; the behavioral coverage lives in
+     * {@link AnnotationAttributionBehaviorTest}, which exercises apply() end-to-end per family.
      */
     @Test
     void rulesAreCuratedForKnownFamilies() {
-        // The rules are in AnnotationAttribution.RULES (private). We verify indirectly:
-        // the class compiles, the known annotation type names are valid DotNames, and the
-        // class can be instantiated (it's a utility class with a private constructor; instantiation
-        // is not needed, but loading the class confirms the RULES list initializes without error).
         assertThat(AnnotationAttribution.class).isNotNull();
         assertThat(DotName.createSimple("jakarta.validation.constraints.NotNull").toString())
                 .startsWith("jakarta.validation.constraints.");

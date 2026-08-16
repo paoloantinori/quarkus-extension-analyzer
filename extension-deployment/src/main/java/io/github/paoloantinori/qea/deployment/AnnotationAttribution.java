@@ -42,31 +42,39 @@ import java.util.Set;
  * confirms the app uses the annotation, so the curated mapping is safe (the annotation IS present,
  * and the mapping says which extension processes it).
  *
- * <p>The curated table is small and validated by the bench triage (docs/SUSPECT-TRIAGE.md):
- * <ul>
- *   <li>{@code jakarta.validation.constraints.*} -> {@code quarkus-hibernate-validator}
- *   <li>{@code io.quarkus.scheduler.Scheduled} -> {@code quarkus-scheduler}
- *   <li>{@code org.eclipse.microprofile.jwt.JsonWebToken} -> {@code quarkus-smallrye-jwt}
- * </ul>
- * Each entry fires only if the annotation type is present in the bean index AND the target extension
- * is a directly-declared suspect (so it never manufactures a verdict for an undeclared extension).
+ * <p>The curated table started small (bench triage, docs/SUSPECT-TRIAGE.md: validation
+ * constraints, @Scheduled, JsonWebToken) and grew through TASK-21/22/23 (REST serializers,
+ * reactive-driver join, REST/OpenAPI/Qute/Panache/Fault-Tolerance families); see the RULES table
+ * below for the current entries. Each entry fires only if the family's probe evidence is present
+ * (annotation usage in the index, a declared type, a shipped file, or endpoint return types) AND
+ * the target extension is a directly-declared suspect (so it never manufactures a verdict for an
+ * undeclared extension).
  */
 public final class AnnotationAttribution {
 
     /** Maps an annotation type (or prefix) to the extension GA that processes it. */
     private record AnnotationRule(String annotationPrefix, String extensionGa) {}
 
+    // Exact-FQCN families referenced from MORE than one site (RULES entry + probe + scanner).
+    // Single constants so a future edit cannot desynchronize the rule table from the probe: the
+    // RegisterRestClient rule was dead on arrival TWICE, once for a missing probe branch and once
+    // for a probe name that did not match the real annotation (restclient vs rest.client).
+    private static final String SCHEDULED_ANNOTATION = "io.quarkus.scheduler.Scheduled";
+    private static final String JSON_WEB_TOKEN_TYPE = "org.eclipse.microprofile.jwt.JsonWebToken";
+    private static final String REGISTER_REST_CLIENT_ANNOTATION =
+            "org.eclipse.microprofile.rest.client.inject.RegisterRestClient";
+    private static final String JAKARTA_WS_RS_PATH = "jakarta.ws.rs.Path";
+
     private static final List<AnnotationRule> RULES = List.of(
             new AnnotationRule("jakarta.validation.constraints.", "io.quarkus:quarkus-hibernate-validator"),
             new AnnotationRule("jakarta.validation.executable.", "io.quarkus:quarkus-hibernate-validator"),
-            new AnnotationRule("io.quarkus.scheduler.Scheduled", "io.quarkus:quarkus-scheduler"),
-            new AnnotationRule("org.eclipse.microprofile.jwt.JsonWebToken", "io.quarkus:quarkus-smallrye-jwt"),
+            new AnnotationRule(SCHEDULED_ANNOTATION, "io.quarkus:quarkus-scheduler"),
+            new AnnotationRule(JSON_WEB_TOKEN_TYPE, "io.quarkus:quarkus-smallrye-jwt"),
             new AnnotationRule("jakarta.ws.rs", "io.quarkus:quarkus-resteasy-jackson"),
             // Client serializer credited by @RegisterRestClient, not server @Path (skeptic finding 5:
             // resteasy-jackson and resteasy-client-jackson have NO overlapping capability, so they
             // coexist in a buildable app; crediting the client from server @Path was wrong).
-            new AnnotationRule("org.eclipse.microprofile.restclient.inject.RegisterRestClient",
-                    "io.quarkus:quarkus-resteasy-client-jackson"),
+            new AnnotationRule(REGISTER_REST_CLIENT_ANNOTATION, "io.quarkus:quarkus-resteasy-client-jackson"),
             // The modern Quarkus REST artifact (formerly resteasy-reactive) and the legacy plain
             // resteasy: whichever is the declared suspect gets credited by the same @Path evidence.
             new AnnotationRule("jakarta.ws.rs", "io.quarkus:quarkus-rest"),
@@ -164,9 +172,9 @@ public final class AnnotationAttribution {
         for (ExtensionReport r : report.dependencies()) {
             if (r.verdict() == Verdict.SUSPECT && credits.containsKey(r.ga())) {
                 // Contract compliance (skeptic finding 6): sharedReferencedJars is SUSPECT-row-only
-                // per ExtensionReport's javadoc, and vocabularyEvidence carries TASK-8 deployment-
-                // vocabulary type names - neither belongs on a row this pass flipped to
-                // USED_BYTECODE. The note field carries the evidence instead.
+                // per ExtensionReport's javadoc and must not survive the flip, while
+                // vocabularyEvidence carries independent TASK-8 signal output and is preserved.
+                // The note field carries THIS pass's evidence.
                 updatedRows.add(new ExtensionReport(r.ga(), r.quarkusExtension(), Verdict.USED_BYTECODE,
                         r.configInherited(), r.configRoots(), r.configMatchedKeys(), r.configSource(),
                         r.inheritedRoots(), true, r.capabilityEvidence(),
@@ -204,25 +212,30 @@ public final class AnnotationAttribution {
         if (prefix.startsWith("jakarta.validation.executable")) {
             return index.getAnnotations(DotName.createSimple("jakarta.validation.executable.ValidateOnExecution")).stream().findAny().isPresent();
         }
-        if (prefix.startsWith("io.quarkus.scheduler.Scheduled")) {
-            return index.getAnnotations(DotName.createSimple("io.quarkus.scheduler.Scheduled")).stream().findAny().isPresent();
+        if (prefix.startsWith(SCHEDULED_ANNOTATION)) {
+            return index.getAnnotations(DotName.createSimple(SCHEDULED_ANNOTATION)).stream().findAny().isPresent();
         }
-        if (prefix.startsWith("org.eclipse.microprofile.jwt.JsonWebToken")) {
+        if (prefix.startsWith(JSON_WEB_TOKEN_TYPE)) {
             // Check for the exact JWT type in any declaration position (code-review finding 5: the
-            // original contains() matched user types like com.acme.JsonWebTokenWrapper). @Inject
-            // anywhere plus the exact type in a field/return/parameter position is the evidence.
-            String jwt = "org.eclipse.microprofile.jwt.JsonWebToken";
+            // original contains() matched user types like com.acme.JsonWebTokenWrapper). The
+            // evidence is the declared type in a field/return/parameter position; an @Inject is
+            // not required (a producer or a mapper parameter is equally valid usage).
             return index.getKnownClasses().stream().anyMatch(ci ->
-                    ci.fields().stream().anyMatch(f -> f.type().name().toString().equals(jwt))
-                    || ci.methods().stream().anyMatch(m -> m.returnType().name().toString().equals(jwt)
-                            || m.parameterTypes().stream().anyMatch(p -> p.name().toString().equals(jwt))));
+                    ci.fields().stream().anyMatch(f -> f.type().name().toString().equals(JSON_WEB_TOKEN_TYPE))
+                    || ci.methods().stream().anyMatch(m -> m.returnType().name().toString()
+                            .equals(JSON_WEB_TOKEN_TYPE)
+                            || m.parameterTypes().stream().anyMatch(p -> p.name().toString()
+                                    .equals(JSON_WEB_TOKEN_TYPE))));
         }
         if (prefix.startsWith("jakarta.ws.rs")) {
-            return !index.getAnnotations(DotName.createSimple("jakarta.ws.rs.Path")).isEmpty();
+            return !index.getAnnotations(DotName.createSimple(JAKARTA_WS_RS_PATH)).isEmpty();
         }
-        if (prefix.startsWith("org.eclipse.microprofile.restclient.inject.RegisterRestClient")) {
+        if (prefix.startsWith(REGISTER_REST_CLIENT_ANNOTATION)) {
+            // The real FQCN (verified against microprofile-rest-client-api): "rest.client" with
+            // the dot. The original probe spelled it "restclient", a phantom name that never
+            // matched any index, leaving the rule dead (caught by TASK-25's behavioral suite).
             return !index.getAnnotations(
-                    DotName.createSimple("org.eclipse.microprofile.restclient.inject.RegisterRestClient")).isEmpty();
+                    DotName.createSimple(REGISTER_REST_CLIENT_ANNOTATION)).isEmpty();
         }
         if (prefix.startsWith("org.eclipse.microprofile.faulttolerance.")) {
             return !index.getAnnotations(DotName.createSimple("org.eclipse.microprofile.faulttolerance.Fallback")).isEmpty()
@@ -232,8 +245,11 @@ public final class AnnotationAttribution {
                     || !index.getAnnotations(DotName.createSimple("org.eclipse.microprofile.faulttolerance.Asynchronous")).isEmpty();
         }
         if (prefix.startsWith("io.smallrye.faulttolerance.api.")) {
-            return !index.getAnnotations(DotName.createSimple("io.smallrye.faulttolerance.api.Async")).isEmpty()
-                    || !index.getAnnotations(DotName.createSimple("io.smallrye.faulttolerance.api.ApplyProfile")).isEmpty();
+            // Probes verified against smallrye-fault-tolerance-api 6.10.1: the original names
+            // (api.Async, api.ApplyProfile) do not exist in any jar, leaving this branch dead;
+            // ApplyGuard and ApplyFaultTolerance are the real annotations in that package.
+            return !index.getAnnotations(DotName.createSimple("io.smallrye.faulttolerance.api.ApplyGuard")).isEmpty()
+                    || !index.getAnnotations(DotName.createSimple("io.smallrye.faulttolerance.api.ApplyFaultTolerance")).isEmpty();
         }
         if (prefix.startsWith("io.quarkus.mongodb.panache.")) {
             return index.getKnownClasses().stream().anyMatch(ci ->
@@ -310,7 +326,7 @@ public final class AnnotationAttribution {
         // Collect the resource classes: @Path on a class targets it directly; @Path on a method
         // targets its declaring class (same resolution the RESTEasy Reactive scanner applies).
         Set<org.jboss.jandex.ClassInfo> resourceClasses = new java.util.LinkedHashSet<>();
-        for (var ai : index.getAnnotations(DotName.createSimple("jakarta.ws.rs.Path"))) {
+        for (var ai : index.getAnnotations(DotName.createSimple(JAKARTA_WS_RS_PATH))) {
             if (ai.target() == null) {
                 continue;
             }

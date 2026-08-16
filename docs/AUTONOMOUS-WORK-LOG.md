@@ -674,3 +674,75 @@ test coverage let ship). All fixed:
 
 Regression: 95+3 tests green; rest-fights 7/11/2/3, rest-heroes 5/7/1/5,
 Apicurio 7/7/5/5 all at baseline.
+
+### Work unit 19, 2026-08-16, TASK-25: behavioral test suite for AnnotationAttribution (finding 7)
+
+The zero-coverage gap (work unit 18, finding 7) is closed: 25 behavioral tests
+exercise AnnotationAttribution.apply() end-to-end. Design decisions:
+
+- ASM-generated .class fixtures carry the REAL framework FQCNs
+  (jakarta.ws.rs.Path, io.smallrye.mutiny.Uni, ...) because
+  annotationFamilyPresent probes exact names; stand-ins would silently match
+  nothing and the suite would green-light dead probes (which is exactly what
+  happened on first run, see below).
+- Generic returns (Uni<Pojo>) are emitted as erasure descriptor + generic
+  signature: Java descriptors cannot carry type arguments, and the unwrap
+  logic reads the signature-driven ParameterizedType.
+- ApplicationModel is an interface (13 abstract methods, verified via javap
+  against quarkus-bootstrap-app-model-3.33.2.1.jar); the test implements it
+  anonymously, only getDependencies carrying the declared extension GAs.
+- The test is deliberately free of Quarkus augmentation machinery: no build
+  step, no ArC, just Index + model + report -> apply().
+
+Coverage: REST-SERIALIZER rule (Pojo, String, void, Uni<Void>, Uni<Pojo>,
+Multi<Void>, Optional<Pojo>, RestResponse<Pojo>, RestResponse<String>),
+method-level @Path on interfaces, inherited endpoints via base-class @GET,
+@RegisterRestClient (positive + server-@Path negative), jakarta.ws.rs family
+credit, undeclared-extension guard, identity path, @NotNull probe,
+JsonWebToken exact-FQCN (positive + similarly-named-negative), reactive-driver
+join (single-declared, db-kind match, no-db-kind ambiguity), flipSuspects
+contract (sharedReferencedJars cleared, vocabularyEvidence preserved, note
+carries the evidence), summary recomputation after flips.
+
+The suite caught a REAL production bug on its very first run: the
+@RegisterRestClient probe looked up the phantom name
+org.eclipse.microprofile.restclient.inject.RegisterRestClient (restclient,
+no dot) while the real FQCN is org.eclipse.microprofile.rest.client.inject.
+RegisterRestClient (verified against microprofile-rest-client-api-4.0.jar).
+The rule had been dead on arrival for the SECOND time: first for a missing
+probe branch (work unit 18, finding 1), then for the misspelled name inside
+the branch that fixed it. Fixed the FQCN in the RULES table and the probe;
+also corrected the stale flipSuspects comment that claimed vocabularyEvidence
+must not survive the flip while the code (correctly) preserves it - the test
+now pins the actual contract.
+
+DoD reviews (this unit): /simplify (4 parallel agents; applied: shared
+assertion helpers collapsing 16 copy-pasted chains, static stub/index reuse,
+field-fixture merge, ASM imports, full-control row overload, plus 4
+multi-site FQCN constants in production to close the rule/probe desync
+class mechanically). /code-review-equivalent (3 independent reviewers,
+correctness + test-quality + API/docs; the skill itself is user-invocation
+only). The test-quality reviewer ran mutation testing against the suite and
+found real holes, all fixed by 20 additional tests (45 behavioral total):
+the flipSuspects non-suspect guard, the reactive leftover-suspect
+disambiguation, Uni<Response>/Response/TemplateInstance exclusions,
+CompletionStage/List/nested-wrapper unwrap depth, the classHierarchy
+interface walk, and 8 more annotation-family probes (Scheduled, Valid,
+ValidateOnExecution, MP Fallback, OpenAPI Operation, CheckedTemplate,
+mongodb-panache superclass). Ground-truth probe verification against the
+real jars exposed a THIRD phantom-probe bug: io.smallrye.faulttolerance.api
+.Async and .ApplyProfile exist in no artifact (real annotations verified in
+smallrye-fault-tolerance-api 6.10.1: ApplyGuard, ApplyFaultTolerance); the
+branch was 100 percent dead. Fixed. Mutation verification re-run in
+reverse: weakening the single-declared guard, deleting the non-suspect
+guard, and reverting the smallrye probe each fail exactly the new pinning
+test (all three mutants killed; production file restored identical each
+time). Class javadoc refreshed (the 3-item curated list predated 14 rule
+entries); the JWT probe comment no longer claims a nonexistent @Inject
+precondition; the structural test's false "guards rule removal" claim
+corrected. FILE: rules remain untested by design: they are CWD-relative
+(TASK-24 will thread projectRoot through apply(), after which they become
+testable without pinning the bug).
+
+Verification: mvn clean install BUILD SUCCESS, 143 tests (95 core + 48
+deployment, of which 45 behavioral).
