@@ -84,11 +84,19 @@ manufactures a verdict for an undeclared extension).
   17 entries; see `AnnotationAttribution.RULES`). Extensions
   not in the table fall through to the three core signals. The table is
   extensible; submit additions validated against real bench data.
-- **Bench caveat (2026-08-17):** the local super-heroes checkout (platform
-  3.38.1) no longer builds pristine: `generate-code` fails with an upstream
-  `OpenAPI.getExtensions()` NPE from the openapi-generator integration
-  (verified on rest-fights and rest-heroes WITHOUT the analyzer extension).
-  Extension-form bench numbers on those apps predate that bump.
+- **Bench caveat (2026-08-17):** the old super-heroes workspace under
+  /private/tmp/super-heroes is DAMAGED (a copy on Aug 16 gutted .git and
+  dropped the openapi spec files; `generate-code` fails with an upstream
+  `OpenAPI.getExtensions()` NPE even pristine, at both 3.33.2.1 and 3.38.1).
+  The active bench is the fresh clone at /private/tmp/super-heroes-fresh
+  (commit a3f2ce1, platform 3.38.1), which builds clean. New baselines with
+  the current extension: rest-heroes extensions 7/8/1/3, suspects {info,
+  micrometer-otel, the analyzer itself} - down from the damaged-era 5, the
+  drop being the config-yaml FILE: credit firing on the real application.yml;
+  rest-fights extensions 9/10/2/3, the same three suspects as before (the
+  @RegisterRestClient-using app credits rest-client-jackson via the
+  transitive-API bytecode signal, so the newly-live rule was not needed
+  there and correctly left the non-suspect row untouched).
 
 ## Architecture
 

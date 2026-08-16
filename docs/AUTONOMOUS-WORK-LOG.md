@@ -875,3 +875,39 @@ two encodings of the domain fact.
 
 Verification: 152 tests green (97 core + 55 deployment), full reactor
 BUILD SUCCESS.
+
+### Work unit 24, 2026-08-17, Bench workspace forensics + fresh-clone baselines
+
+Root-caused the super-heroes bench breakage from unit 22: the workspace at
+/private/tmp/super-heroes is DAMAGED, not upstream-broken. Its .git is gutted
+(no HEAD/refs/objects) and the openapi spec files are missing (empty
+src/main/resources/openapi/ dirs); the openapi-generator-server NPE is the
+generator parsing the absent spec. It fails pristine at both 3.33.2.1 and
+3.38.1, with and without the extension. A copy/move on Aug 16 00:00 is the
+likely cause (matching mtimes).
+
+Fix: fresh clone (quarkusio/quarkus-super-heroes @ a3f2ce1, platform 3.38.1)
+at /private/tmp/super-heroes-fresh; both apps build clean. New extension
+baselines recorded with the current fixed extension:
+- rest-heroes: extensions 7/8/1/3, suspects {quarkus-info,
+  quarkus-micrometer-opentelemetry, the analyzer itself}. Down from the
+  damaged-era 5; the drop is the config-yaml FILE: credit firing on the
+  real application.yml (note visible in the report), plus the
+  reactive-driver join. Both remaining suspects are the documented
+  runtime-only pair.
+- rest-fights: extensions 9/10/2/3, same three suspects as the old
+  baseline. rest-fights uses @RegisterRestClient and declares
+  quarkus-rest-client-jackson, but the core transitive-API bytecode signal
+  already credits it (microprofile-rest-client-api), so the newly-live
+  rule was correctly not needed: the annotation-consumer pass left the
+  non-suspect row untouched, exactly per contract.
+
+Also completed the no-phantom-names sweep over every remaining value-rules
+target (12 container-image/JDBC GAs against BOM 3.33.2.1, the stork
+artifact against the local repo): all real. The sweep's final tally across
+the whole rules surface: 4 phantoms found and fixed this session
+(RegisterRestClient FQCN, smallrye FT probe pair, mariadb reactive GA).
+
+Verification: both fresh-clone builds green with the extension firing;
+poms restored pristine (verified 0 analyzer refs); pinned-copy scratch
+removed. 152 tests green (from unit 23's build).
