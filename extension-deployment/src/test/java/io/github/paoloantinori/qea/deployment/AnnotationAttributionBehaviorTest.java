@@ -809,10 +809,21 @@ class AnnotationAttributionBehaviorTest {
 
     // --- FILE: rules (TASK-24: resolved under the passed project root, not the CWD) ---------------
 
+    /** Fixture-path helper with LITERAL layout, deliberately independent of production's
+     *  MavenLayout: sharing it would let a typo'd convention create and probe the same wrong
+     *  path, passing vacuously (the phantom-FQCN lesson applied to paths). */
+    private static Path resources(String name, Path root) {
+        return root.resolve(Path.of("src", "main", "resources", name));
+    }
+
+    private static Path classes(String name, Path root) {
+        return root.resolve(Path.of("target", "classes", name));
+    }
+
     @Test
     void yamlInProjectRootResourcesCreditsConfigYaml(@TempDir Path moduleRoot) throws IOException {
-        Files.createDirectories(moduleRoot.resolve(Path.of("src", "main", "resources")));
-        Files.writeString(moduleRoot.resolve(Path.of("src", "main", "resources", "application.yml")), "quarkus: {}\n");
+        Files.createDirectories(resources("application.yml", moduleRoot).getParent());
+        Files.writeString(resources("application.yml", moduleRoot), "quarkus: {}\n");
         AnalysisReport out = AnnotationAttribution.apply(report(suspect(CONFIG_YAML)),
                 STUB_ONLY_INDEX, modelOf(CONFIG_YAML), Set.of(), moduleRoot);
         assertThat(rowOf(out, CONFIG_YAML).verdict()).isEqualTo(Verdict.USED_BYTECODE);
@@ -820,8 +831,8 @@ class AnnotationAttributionBehaviorTest {
 
     @Test
     void yamlInTargetClassesAlsoCreditsConfigYaml(@TempDir Path moduleRoot) throws IOException {
-        Files.createDirectories(moduleRoot.resolve(Path.of("target", "classes")));
-        Files.writeString(moduleRoot.resolve(Path.of("target", "classes", "application.yaml")), "quarkus: {}\n");
+        Files.createDirectories(classes("application.yaml", moduleRoot).getParent());
+        Files.writeString(classes("application.yaml", moduleRoot), "quarkus: {}\n");
         AnalysisReport out = AnnotationAttribution.apply(report(suspect(CONFIG_YAML)),
                 STUB_ONLY_INDEX, modelOf(CONFIG_YAML), Set.of(), moduleRoot);
         assertThat(rowOf(out, CONFIG_YAML).verdict()).isEqualTo(Verdict.USED_BYTECODE);
@@ -834,9 +845,8 @@ class AnnotationAttributionBehaviorTest {
         // the module being augmented is otherModule, and its verdict must not leak in from the
         // other root. (The strict no-CWD-union semantics are pinned directly by the
         // configFilePresent unit tests below, which do not depend on the surefire CWD.)
-        Files.createDirectories(reactorRoot.resolve(Path.of("src", "main", "resources")));
-        Files.writeString(reactorRoot.resolve(Path.of("src", "main", "resources", "application.yml")),
-                "quarkus: {}\n");
+        Files.createDirectories(resources("application.yml", reactorRoot).getParent());
+        Files.writeString(resources("application.yml", reactorRoot), "quarkus: {}\n");
         AnalysisReport out = AnnotationAttribution.apply(report(suspect(CONFIG_YAML)),
                 STUB_ONLY_INDEX, modelOf(CONFIG_YAML), Set.of(), otherModule);
         assertThat(rowOf(out, CONFIG_YAML).verdict()).isEqualTo(Verdict.SUSPECT);
@@ -854,8 +864,8 @@ class AnnotationAttributionBehaviorTest {
             throws IOException {
         // Direct pins of the probe semantics (TASK-24): resolution happens strictly under the
         // passed root, in the two conventional locations, for both file spellings.
-        Files.createDirectories(withYml.resolve(Path.of("src", "main", "resources")));
-        Files.writeString(withYml.resolve(Path.of("src", "main", "resources", "application.yml")), "q: v\n");
+        Files.createDirectories(resources("application.yml", withYml).getParent());
+        Files.writeString(resources("application.yml", withYml), "q: v\n");
         assertThat(AnnotationAttribution.configFilePresent("FILE:application.yml", withYml)).isTrue();
         assertThat(AnnotationAttribution.configFilePresent("FILE:application.yml", without)).isFalse();
         assertThat(AnnotationAttribution.configFilePresent("FILE:application.yaml", withYml)).isFalse();
@@ -864,8 +874,8 @@ class AnnotationAttributionBehaviorTest {
 
     @Test
     void configFilePresentAlsoFindsTargetClassesCopy(@TempDir Path moduleRoot) throws IOException {
-        Files.createDirectories(moduleRoot.resolve(Path.of("target", "classes")));
-        Files.writeString(moduleRoot.resolve(Path.of("target", "classes", "application.yaml")), "q: v\n");
+        Files.createDirectories(classes("application.yaml", moduleRoot).getParent());
+        Files.writeString(classes("application.yaml", moduleRoot), "q: v\n");
         assertThat(AnnotationAttribution.configFilePresent("FILE:application.yaml", moduleRoot)).isTrue();
         assertThat(AnnotationAttribution.configFilePresent("FILE:application.yml", moduleRoot)).isFalse();
     }

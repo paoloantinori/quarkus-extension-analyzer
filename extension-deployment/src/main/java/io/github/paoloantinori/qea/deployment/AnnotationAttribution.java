@@ -213,10 +213,8 @@ public final class AnnotationAttribution {
      */
     static boolean configFilePresent(String prefix, java.nio.file.Path projectRoot) {
         String fileName = prefix.substring("FILE:".length());
-        return java.nio.file.Files.isRegularFile(
-                        projectRoot.resolve(java.nio.file.Path.of("src", "main", "resources", fileName)))
-                || java.nio.file.Files.isRegularFile(
-                        projectRoot.resolve(java.nio.file.Path.of("target", "classes", fileName)));
+        return java.nio.file.Files.isRegularFile(MavenLayout.resourcesFile(projectRoot, fileName))
+                || java.nio.file.Files.isRegularFile(MavenLayout.classesFile(projectRoot, fileName));
     }
 
     /**

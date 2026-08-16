@@ -100,17 +100,17 @@ public final class AnalyzerBuildStep {
         // config lookup: observed as used-config=0 and a 19-suspect report on rest-fights).
         Path projectRoot = firstExistingProjectRoot(model);
         List<Path> classesDirs = new ArrayList<>();
-        Path mainClasses = projectRoot.resolve("target/classes");
+        Path mainClasses = MavenLayout.classesDir(projectRoot);
         if (Files.isDirectory(mainClasses)) {
             classesDirs.add(mainClasses);
         }
-        Path testClasses = projectRoot.resolve("target/test-classes");
+        Path testClasses = MavenLayout.testClassesDir(projectRoot);
         if (Files.isDirectory(testClasses)) {
             classesDirs.add(testClasses);
         }
 
         // The app config: read from the conventional location, same as the mojo's default.
-        AppConfigReader appConfig = readAppConfig(classesDirs);
+        AppConfigReader appConfig = readAppConfig(projectRoot);
 
         ExecutorService executor = Executors.newFixedThreadPool(
                 Math.max(2, Runtime.getRuntime().availableProcessors()));
@@ -173,9 +173,7 @@ public final class AnalyzerBuildStep {
             Path path = p.toAbsolutePath().normalize();
             // resolved paths may be the module dir itself, target/classes, or a jar
             if (Files.isDirectory(path)) {
-                if (path.getFileName() != null && path.getFileName().toString().equals("classes")
-                        && path.getParent() != null && path.getParent().getFileName() != null
-                        && path.getParent().getFileName().toString().equals("target")) {
+                if (MavenLayout.isMainClassesDir(path)) {
                     return path.getParent().getParent();
                 }
                 return path;
@@ -184,26 +182,15 @@ public final class AnalyzerBuildStep {
         return Path.of("");
     }
 
-    private static AppConfigReader readAppConfig(List<Path> classesDirs) {
-        // Resolve the config from the project root implied by the classes dirs (target/classes ->
-        // target -> root), NOT from the process CWD: during augmentation Maven normally runs with
-        // CWD = module dir, but a build invoked as `mvn -f <module>/pom.xml` from elsewhere keeps
-        // the caller's CWD, and a CWD-relative lookup then silently reads the wrong directory
-        // (observed: used-config dropped to 0 when the bench ran with -f from another repo).
-        Path projectRoot = null;
-        for (Path dir : classesDirs) {
-            Path classes = dir.toAbsolutePath().normalize();
-            if (classes.getNameCount() > 2 && classes.getParent() != null
-                    && classes.getParent().getFileName() != null
-                    && classes.getParent().getFileName().toString().equals("target")) {
-                projectRoot = classes.getParent().getParent();
-                break;
-            }
-        }
+    private static AppConfigReader readAppConfig(Path projectRoot) {
+        // Resolve the config from the project root, NOT from the process CWD: during augmentation
+        // Maven normally runs with CWD = module dir, but a build invoked as `mvn -f
+        // <module>/pom.xml` from elsewhere keeps the caller's CWD, and a CWD-relative lookup
+        // then silently reads the wrong directory (observed: used-config dropped to 0 when the
+        // bench ran with -f from another repo). An empty root resolves to the plain relative
+        // form, i.e. the legacy CWD behavior.
         for (String name : List.of("application.properties", "application.yaml", "application.yml")) {
-            Path candidate = projectRoot != null
-                    ? projectRoot.resolve("src").resolve("main").resolve("resources").resolve(name)
-                    : Path.of("src", "main", "resources", name);
+            Path candidate = MavenLayout.resourcesFile(projectRoot, name);
             if (Files.isRegularFile(candidate)) {
                 try {
                     return name.endsWith(".properties")

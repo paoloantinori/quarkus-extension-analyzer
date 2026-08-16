@@ -772,3 +772,25 @@ Maven-layout path derivations across the shell) filed as TASK-26.
 
 Verification: 51 behavioral + 3 structural tests green; full reactor
 mvn clean install BUILD SUCCESS (95 core + 54 deployment).
+
+### Work unit 21, 2026-08-16, TASK-26: MavenLayout consolidates the shell's path idioms
+
+Out-of-scope follow-up from the TASK-24 review (R1+R2). New package-visible
+MavenLayout (resourcesFile/classesFile/classesDir/testClassesDir/
+isMainClassesDir) is the single definition of the conventional layout;
+configFilePresent, readAppConfig, the classesDirs build and the
+firstExistingProjectRoot strip all consume it. readAppConfig now takes
+projectRoot directly, deleting the classesDirs round-trip.
+
+DoD review (2 agents: 4-angle quality + adversarial equivalence with
+empirical Path probing, 11 edge cases). All five equivalence claims
+confirmed; the single real divergence (empty classesDirs with a real root:
+the config probe moves from CWD-relative to root-relative) is intentional,
+documented, and the direction TASK-24 established. Fixes applied from the
+review: testClassesDir + isMainClassesDir completed the centralization, the
+rotting "ten lines above" changelog sentence removed. The behavioral test
+deliberately keeps literal-path fixture helpers independent of MavenLayout
+(the phantom-FQCN lesson applied to paths: a shared typo'd convention would
+create and probe the same wrong path, passing vacuously).
+
+Verification: 149 tests green, full reactor BUILD SUCCESS.

@@ -1,0 +1,60 @@
+---
+id: TASK-26
+title: >-
+  Consolidate the duplicated project-root and Maven-layout path derivations in
+  the extension shell
+status: Done
+assignee: []
+created_date: '2026-08-16 22:37'
+updated_date: '2026-08-16 22:45'
+labels: []
+dependencies: []
+modified_files:
+  - >-
+    extension-deployment/src/main/java/io/github/paoloantinori/qea/deployment/MavenLayout.java
+  - >-
+    extension-deployment/src/main/java/io/github/paoloantinori/qea/deployment/AnalyzerBuildStep.java
+  - >-
+    extension-deployment/src/main/java/io/github/paoloantinori/qea/deployment/AnnotationAttribution.java
+  - >-
+    extension-deployment/src/test/java/io/github/paoloantinori/qea/deployment/AnnotationAttributionBehaviorTest.java
+priority: low
+type: chore
+ordinal: 25000
+---
+
+## Description
+
+<!-- SECTION:DESCRIPTION:BEGIN -->
+Out-of-scope findings from the TASK-24 DoD review (reuse angle R1+R2), to execute after TASK-24:
+
+R1: AnalyzerBuildStep derives the project root in two pre-existing places: firstExistingProjectRoot(model) (model resolved paths -> root) and readAppConfig's inner loop (classesDirs -> root, a literal round-trip of the projectRoot -> classesDirs computation 10 lines earlier). Two encodings of the strip-/target/classes convention that can drift. Consolidation is not a pure refactor (when classesDirs is empty, readAppConfig falls back to CWD while the outer projectRoot may be non-empty), so it needs its own deliberate justification.
+
+R2: the src/main/resources / target/classes layout idiom is duplicated across AnnotationAttribution.configFilePresent, AnalyzerBuildStep.readAppConfig (two spellings: resolve chains and flat string), and the behavioral test (8 repetitions). A tiny shared helper (e.g. resourcesFile(root, name) / classesFile(root, name)) plus a test-local helper would give the Maven-layout convention one definition, matching the codebase's own single-constant discipline for multi-site FQCNs.
+<!-- SECTION:DESCRIPTION:END -->
+
+## Acceptance Criteria
+<!-- AC:BEGIN -->
+- [x] #1 Un unico punto definisce i path convenzionali src/main/resources e target/classes (helper condiviso o costanti)
+- [x] #2 AnnotationAttribution.configFilePresent e AnalyzerBuildStep.readAppConfig usano entrambi quell'helper
+- [x] #3 readAppConfig non rideriva il root invertendo classesDirs quando il root e' gia' disponibile al chiamante (o la divergenza e' documentata come intenzionale)
+- [x] #4 Suite completa verde (mvn clean install)
+<!-- AC:END -->
+
+## Definition of Done
+<!-- DOD:BEGIN -->
+- [x] #1 Run /simplify on the changed code and apply the cleanups it surfaces
+- [x] #2 Run /code-review at high effort on the final diff and resolve every finding
+<!-- DOD:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Executed as follow-up out-of-scope finding from the TASK-24 DoD review.
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+New package-visible MavenLayout (resourcesFile/classesFile/classesDir/testClassesDir/isMainClassesDir) is now the single definition of the conventional layout in the deployment package; configFilePresent, readAppConfig, the classesDirs build, and the firstExistingProjectRoot strip all use it. readAppConfig takes projectRoot directly (the classesDirs round-trip is gone). Review (2 agents: 4-angle quality + adversarial equivalence with empirical Path probing) verified all 5 equivalence claims; the single real divergence (empty classesDirs with a real root: config probe moves from CWD-relative to root-relative) is intentional, documented, and in the direction TASK-24 established. Review fixes applied: testClassesDir + isMainClassesDir completed the centralization, the rotting changelog sentence removed. The behavioral test keeps literal-path fixture helpers, deliberately independent of MavenLayout (anti-vacuous-pass, documented). 149 tests green, full reactor BUILD SUCCESS.
+<!-- SECTION:FINAL_SUMMARY:END -->
