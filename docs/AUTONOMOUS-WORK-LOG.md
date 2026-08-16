@@ -641,3 +641,36 @@ same root cause as the readAppConfig CWD bug; fix requires threading
 projectRoot through apply(), deferred as TASK-24).
 
 Regression: 95+3 tests green; rest-fights baseline unchanged (7/11/2/3).
+
+### Work unit 18, 2026-08-16, /code-review high results: 10 findings, 9 fixed, 1 filed
+
+The user ran the real /code-review skill (background). Ten findings, all verified by
+nine skeptic sub-agents plus one mechanical check. Findings 1 and 2 caught bugs in
+yesterday's skeptic-fix commit itself (the fixes introduced regressions that zero
+test coverage let ship). All fixed:
+
+1. @RegisterRestClient rule dead on arrival: annotationFamilyPresent had NO branch
+   for the new prefix (always returned false); the old working jakarta.ws.rs rule
+   for the GA had been deleted. FIXED: branch added.
+2. RestResponse<Pojo> false negative: adding the real RestResponse FQCN to
+   NON_SERIALIZED_RETURNS without teaching the unwrap about it meant parameterized
+   RestResponse<Pojo> was excluded (the pre-commit phantom set accidentally
+   returned true for it). FIXED: RestResponse parameterized-use unwraps to its
+   type argument.
+3. Inherited REST methods missed: Jandex methods() is declared-only; @Path subclass
+   with base-class endpoints was a false negative. FIXED: classHierarchy() BFS
+   walk (superclass chain + interfaces, bounded by index knowledge).
+4. Multi<Void>/Multi<Response> over-credit: Multi missing from wrapper list. FIXED.
+5. JsonWebToken substring match: contains() matched user types like
+   com.acme.JsonWebTokenWrapper; also removed the unrelated @Inject precondition.
+   FIXED: exact FQCN equality.
+6. FILE: CWD-relativity: confirmed, already filed as TASK-24 (unchanged).
+7. Zero test coverage on all six behavior changes: confirmed. NOT fixed in this
+   unit (the fix is the behavioral test suite, tracked as the follow-up below).
+8. Misleading evidence note ("uses constraints.*" when only @Valid matched):
+   FIXED: evidence now names the family probed, not the sub-annotation.
+9. Triple probe of shared prefixes: FIXED: distinct-prefix memoization loop.
+10. Seven em-dashes in new prose: FIXED (all replaced with plain hyphens).
+
+Regression: 95+3 tests green; rest-fights 7/11/2/3, rest-heroes 5/7/1/5,
+Apicurio 7/7/5/5 all at baseline.

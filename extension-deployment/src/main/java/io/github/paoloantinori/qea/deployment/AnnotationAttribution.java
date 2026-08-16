@@ -23,7 +23,9 @@ import io.quarkus.maven.dependency.ResolvedDependency;
 import org.jboss.jandex.DotName;
 import org.jboss.jandex.IndexView;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -105,11 +107,17 @@ public final class AnnotationAttribution {
 
         // Collect which annotation prefixes are present in the bean index.
         Set<String> presentAnnotationPrefixes = new java.util.TreeSet<>();
+        Set<String> distinctPrefixes = new java.util.LinkedHashSet<>();
         for (var rule : RULES) {
+            distinctPrefixes.add(rule.annotationPrefix());
+        }
+        for (String prefix : distinctPrefixes) {
             // Jandex getAnnotations returns annotations by exact DotName, not prefix; probe the
-            // known representative types per family instead.
-            if (annotationFamilyPresent(beanIndex, rule.annotationPrefix())) {
-                presentAnnotationPrefixes.add(rule.annotationPrefix());
+            // known representative types per family once per DISTINCT prefix (code-review finding
+            // 9: the shared jakarta.ws.rs prefix was probed 3x and restEndpointsReturningPojos ran
+            // twice per augmentation; the probe is deterministic and side-effect-free).
+            if (annotationFamilyPresent(beanIndex, prefix)) {
+                presentAnnotationPrefixes.add(prefix);
             }
         }
 
@@ -122,14 +130,17 @@ public final class AnnotationAttribution {
             return flipSuspects(report, joinOnly);
         }
 
-        // Build the updated report: flip matching suspects to used-bytecode.
+        // Build the updated report: flip matching suspects to used-bytecode. The evidence names the
+        // PREFIX probed, not every annotation under it (code-review finding 8: when only @Valid
+        // matched, the note still claimed jakarta.validation.constraints.*, which the index
+        // contradicted; the prefix is the honest statement of what was probed).
         Map<String, String> resolvedByGa = new LinkedHashMap<>();
         for (var rule : RULES) {
             if (presentAnnotationPrefixes.contains(rule.annotationPrefix())
                     && declaredExtensionGas.contains(rule.extensionGa())) {
                 resolvedByGa.put(rule.extensionGa(),
-                        "annotation-consumer: app uses " + rule.annotationPrefix()
-                                + "*, which is processed by " + rule.extensionGa());
+                        "annotation-consumer: app uses the " + rule.annotationPrefix()
+                                + " family, which is processed by " + rule.extensionGa());
             }
         }
 
@@ -154,7 +165,7 @@ public final class AnnotationAttribution {
             if (r.verdict() == Verdict.SUSPECT && credits.containsKey(r.ga())) {
                 // Contract compliance (skeptic finding 6): sharedReferencedJars is SUSPECT-row-only
                 // per ExtensionReport's javadoc, and vocabularyEvidence carries TASK-8 deployment-
-                // vocabulary type names — neither belongs on a row this pass flipped to
+                // vocabulary type names - neither belongs on a row this pass flipped to
                 // USED_BYTECODE. The note field carries the evidence instead.
                 updatedRows.add(new ExtensionReport(r.ga(), r.quarkusExtension(), Verdict.USED_BYTECODE,
                         r.configInherited(), r.configRoots(), r.configMatchedKeys(), r.configSource(),
@@ -186,7 +197,7 @@ public final class AnnotationAttribution {
                     || index.getAnnotations(DotName.createSimple("jakarta.validation.constraints.NotBlank")).stream().findAny().isPresent()
                     || index.getAnnotations(DotName.createSimple("jakarta.validation.constraints.NotEmpty")).stream().findAny().isPresent()
                     || index.getAnnotations(DotName.createSimple("jakarta.validation.constraints.Size")).stream().findAny().isPresent()
-                    // @Valid is jakarta.validation.Valid (not .constraints.Valid — the original
+                    // @Valid is jakarta.validation.Valid (not .constraints.Valid - the original
                     // FQCN never matched, skeptic finding 6)
                     || index.getAnnotations(DotName.createSimple("jakarta.validation.Valid")).stream().findAny().isPresent();
         }
@@ -197,15 +208,21 @@ public final class AnnotationAttribution {
             return index.getAnnotations(DotName.createSimple("io.quarkus.scheduler.Scheduled")).stream().findAny().isPresent();
         }
         if (prefix.startsWith("org.eclipse.microprofile.jwt.JsonWebToken")) {
-            // Check if any injection point references JsonWebToken (it may be via @Inject, not as annotation)
-            return !index.getAnnotations(DotName.createSimple("jakarta.inject.Inject")).isEmpty()
-                    && index.getKnownClasses().stream().anyMatch(ci ->
-                    ci.fields().stream().anyMatch(f -> f.type().name().toString().contains("JsonWebToken"))
-                    || ci.methods().stream().anyMatch(m -> m.returnType().name().toString().contains("JsonWebToken")
-                    || m.parameterTypes().stream().anyMatch(p -> p.name().toString().contains("JsonWebToken"))));
+            // Check for the exact JWT type in any declaration position (code-review finding 5: the
+            // original contains() matched user types like com.acme.JsonWebTokenWrapper). @Inject
+            // anywhere plus the exact type in a field/return/parameter position is the evidence.
+            String jwt = "org.eclipse.microprofile.jwt.JsonWebToken";
+            return index.getKnownClasses().stream().anyMatch(ci ->
+                    ci.fields().stream().anyMatch(f -> f.type().name().toString().equals(jwt))
+                    || ci.methods().stream().anyMatch(m -> m.returnType().name().toString().equals(jwt)
+                            || m.parameterTypes().stream().anyMatch(p -> p.name().toString().equals(jwt))));
         }
         if (prefix.startsWith("jakarta.ws.rs")) {
             return !index.getAnnotations(DotName.createSimple("jakarta.ws.rs.Path")).isEmpty();
+        }
+        if (prefix.startsWith("org.eclipse.microprofile.restclient.inject.RegisterRestClient")) {
+            return !index.getAnnotations(
+                    DotName.createSimple("org.eclipse.microprofile.restclient.inject.RegisterRestClient")).isEmpty();
         }
         if (prefix.startsWith("org.eclipse.microprofile.faulttolerance.")) {
             return !index.getAnnotations(DotName.createSimple("org.eclipse.microprofile.faulttolerance.Fallback")).isEmpty()
@@ -261,10 +278,10 @@ public final class AnnotationAttribution {
     /**
      * Types the app returning which need NO serializer (HTTP machinery or primitives). FQCNs verified
      * against real jars (skeptic review 2026-08-16): the original table listed three phantom classes
-     * that do not exist in any artifact ({@code io.quarkus.rest.runtime.RestResponse} — the real type
+     * that do not exist in any artifact ({@code io.quarkus.rest.runtime.RestResponse} - the real type
      * is {@code org.jboss.resteasy.reactive.RestResponse} in resteasy-reactive-common; {@code
-     * io.quarkus.resteasy.runtime.ResteasyResponse} — only a nested wrapper exists; {@code
-     * org.jboss.resteasy.reactive.server.SseInOutEvent} — no such class). Phantom entries never
+     * io.quarkus.resteasy.runtime.ResteasyResponse} - only a nested wrapper exists; {@code
+     * org.jboss.resteasy.reactive.server.SseInOutEvent} - no such class). Phantom entries never
      * matched, so {@code RestResponse<String>} endpoints were over-crediting the serializer.
      */
     private static final Set<String> NON_SERIALIZED_RETURNS = Set.of(
@@ -286,7 +303,7 @@ public final class AnnotationAttribution {
      *
      * <p>Interface resources are included via the method-target branch (skeptic finding 3): Quarkus's
      * own scanner registers resources from method-level {@code @Path} on interfaces, so dropping
-     * non-CLASS targets produced {@code familyPresent=true} but {@code pojos()=false} — a false
+     * non-CLASS targets produced {@code familyPresent=true} but {@code pojos()=false} - a false
      * negative on exactly the apps TASK-21 was filed for.
      */
     private static boolean restEndpointsReturningPojos(IndexView index) {
@@ -304,18 +321,57 @@ public final class AnnotationAttribution {
             }
         }
         for (org.jboss.jandex.ClassInfo ci : resourceClasses) {
-            for (var m : ci.methods()) {
-                boolean isRestMethod = m.annotations().stream().anyMatch(a ->
-                        REST_METHOD_ANNOTATIONS.contains(a.name().toString()));
-                if (!isRestMethod) {
-                    continue;
-                }
-                if (returnTypeNeedsSerializer(m.returnType())) {
-                    return true;
+            // Include inherited REST methods (code-review finding 3: Jandex methods() returns
+            // declared methods only, so @Path on a subclass with endpoint methods in a base
+            // class would be a false negative). Walk the class + its superclass chain +
+            // interfaces, bounded by what the index knows (unknown supertypes return null and
+            // stop the walk).
+            for (org.jboss.jandex.ClassInfo owner : classHierarchy(index, ci)) {
+                for (var m : owner.methods()) {
+                    boolean isRestMethod = m.annotations().stream().anyMatch(a ->
+                            REST_METHOD_ANNOTATIONS.contains(a.name().toString()));
+                    if (!isRestMethod) {
+                        continue;
+                    }
+                    if (returnTypeNeedsSerializer(m.returnType())) {
+                        return true;
+                    }
                 }
             }
         }
         return false;
+    }
+
+    /**
+     * The class plus every supertype the index knows (superclass chain and direct interfaces,
+     * transitively). Stops at classes the index does not contain (framework types outside the app
+     * have no REST-method evidence anyway: annotations on framework base classes are not the app's
+     * endpoints).
+     */
+    private static Set<org.jboss.jandex.ClassInfo> classHierarchy(IndexView index,
+            org.jboss.jandex.ClassInfo start) {
+        Set<org.jboss.jandex.ClassInfo> seen = new java.util.LinkedHashSet<>();
+        Deque<org.jboss.jandex.ClassInfo> queue = new java.util.ArrayDeque<>();
+        queue.add(start);
+        while (!queue.isEmpty()) {
+            org.jboss.jandex.ClassInfo ci = queue.poll();
+            if (!seen.add(ci)) {
+                continue;
+            }
+            if (ci.superName() != null) {
+                org.jboss.jandex.ClassInfo sup = index.getClassByName(ci.superName());
+                if (sup != null) {
+                    queue.add(sup);
+                }
+            }
+            for (DotName itf : ci.interfaceNames()) {
+                org.jboss.jandex.ClassInfo iface = index.getClassByName(itf);
+                if (iface != null) {
+                    queue.add(iface);
+                }
+            }
+        }
+        return seen;
     }
 
     /**
@@ -324,22 +380,37 @@ public final class AnnotationAttribution {
      * argument must not be either ({@code Uni<Void>} and {@code Uni<Response>} need no serializer;
      * {@code Uni<Pojo>} does). Jandex {@code ParameterizedType.name()} returns the raw name (it does
      * not override {@code name()}), which is why the unwrapping must be explicit.
+     *
+     * <p>The response-machinery exclusion ({@code RestResponse}, {@code Response}) is checked by raw
+     * name BEFORE the wrapper unwrap AND inside it ({@code RestResponse<Pojo>} has a POJO payload
+     * even though the raw name is the HTTP machinery; {@code Uni<RestResponse<Pojo>>} doubly so),
+     * because the {@code NON_SERIALIZED_RETURNS} set alone cannot discriminate parameterized uses of
+     * a machinery type.
      */
     private static boolean returnTypeNeedsSerializer(org.jboss.jandex.Type type) {
         // Unwrap one level of async/container wrapper to inspect the payload type.
         if (type instanceof org.jboss.jandex.ParameterizedType pt) {
             String raw = pt.name().toString();
             if (raw.equals("io.smallrye.mutiny.Uni")
+                    || raw.equals("io.smallrye.mutiny.Multi")
                     || raw.equals("java.util.concurrent.CompletionStage")
                     || raw.equals("java.util.Optional")) {
                 var args = pt.arguments();
                 if (!args.isEmpty()) {
                     return returnTypeNeedsSerializer(args.get(0));
                 }
-                return true; // raw Uni/CompletionStage with no argument: assume a payload
+                return true; // raw Uni/Multi/CompletionStage with no argument: assume a payload
+            }
+            // RestResponse<Pojo> and Uni<RestResponse<Pojo>>: the HTTP-machinery wrapper has a
+            // POJO payload, so the serializer IS needed despite the machinery raw name.
+            if (raw.equals("org.jboss.resteasy.reactive.RestResponse")) {
+                var args = pt.arguments();
+                if (!args.isEmpty()) {
+                    return returnTypeNeedsSerializer(args.get(0));
+                }
             }
             // List<Foo>, Set<Foo> etc.: the raw container name is not excluded, so a POJO
-            // element type means the serializer fires — the conservative direction.
+            // element type means the serializer fires (the conservative direction).
         }
         return !NON_SERIALIZED_RETURNS.contains(type.name().toString());
     }
@@ -353,7 +424,7 @@ public final class AnnotationAttribution {
      *
      * <p>Disambiguation when MULTIPLE reactive clients are declared (TASK-23): the empirical bench
      * proved two things. First, two clients with no explicit datasource config make the build FAIL
-     * ("The datasource must be configured for Hibernate Reactive") — Quarkus refuses to guess. So a
+     * ("The datasource must be configured for Hibernate Reactive") - Quarkus refuses to guess. So a
      * buildable multi-client app necessarily carries an explicit {@code db-kind}, which IS the
      * authority for which client is the driver. When a {@code db-kind} value is present, the client
      * whose family matches it is credited and the others stay suspect (they are genuinely removable
@@ -381,7 +452,7 @@ public final class AnnotationAttribution {
                 .toList();
         // Single-DECLARED shortcut (not single-suspect): when the app declares exactly one reactive
         // client total, that one is necessarily the driver. When several are declared, a single
-        // remaining suspect is the LEFTOVER after its siblings were credited elsewhere — crediting it
+        // remaining suspect is the LEFTOVER after its siblings were credited elsewhere - crediting it
         // would be wrong (two clients + db-kind=postgresql leaves mysql as the leftover, and mysql
         // is dead weight). In the multi-declared case only the db-kind match decides.
         if (reactiveDeclared.size() == 1 && reactiveSuspects.size() == 1) {
