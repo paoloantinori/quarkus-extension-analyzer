@@ -99,6 +99,25 @@ class ValueRulesTest {
     }
 
     @Test
+    void mariadbDbKindSelectsTheMysqlReactiveClient() {
+        // There is no mariadb reactive artifact (quarkusio/quarkus#55695 is an open request):
+        // MariaDB reactive apps run quarkus-reactive-mysql-client with db-kind=mariadb. This
+        // pins the matches mechanism for two same-GA rules (no double credit, deterministic
+        // value); the bundled value-rules.txt line itself is pinned by the loadDefault test.
+        ValueRules rules = ValueRules.of(List.of(
+                new ValueRules.Rule("quarkus.datasource.{name}.db-kind", "mysql",
+                        "io.quarkus:quarkus-reactive-mysql-client"),
+                new ValueRules.Rule("quarkus.datasource.{name}.db-kind", "mariadb",
+                        "io.quarkus:quarkus-reactive-mysql-client")));
+        Map<String, Set<String>> valuesByKey = Map.of("quarkus.datasource.db-kind", Set.of("mariadb"));
+
+        Map<String, ValueRules.Match> matches = rules.matches(valuesByKey);
+
+        assertThat(matches).containsOnlyKeys("io.quarkus:quarkus-reactive-mysql-client");
+        assertThat(matches.get("io.quarkus:quarkus-reactive-mysql-client").value()).isEqualTo("mariadb");
+    }
+
+    @Test
     void matchesFindsAValueUnderAnyProfileMergedIntoTheSameBareKey() {
         // AppConfigReader merges "%openshift.quarkus.container-image.builder" and the unprefixed key
         // into the same bare key with two values; the rules table has no profile concept of its own.
@@ -226,6 +245,21 @@ class ValueRulesTest {
         Map<String, ValueRules.Match> matches = rules.matches(Map.of("quarkus.datasource.db-kind", Set.of("derby")));
 
         assertThat(matches).isEmpty();
+    }
+
+    @Test
+    void loadDefaultMapsMariadbToTheRealClientsNotAPhantomReactiveArtifact() {
+        // Pins the bundled value-rules.txt lines: db-kind=mariadb selects the REAL clients
+        // (quarkus-jdbc-mariadb and quarkus-reactive-mysql-client). There is no
+        // quarkus-reactive-mariadb-client artifact (quarkusio/quarkus#55695 is an open request),
+        // so a phantom target here can never be credited and would ship undetected.
+        ValueRules rules = ValueRules.loadDefault();
+
+        Map<String, ValueRules.Match> matches =
+                rules.matches(Map.of("quarkus.datasource.db-kind", Set.of("mariadb")));
+
+        assertThat(matches).containsOnlyKeys("io.quarkus:quarkus-jdbc-mariadb",
+                "io.quarkus:quarkus-reactive-mysql-client");
     }
 
     // --- parser -------------------------------------------------------------------------------------

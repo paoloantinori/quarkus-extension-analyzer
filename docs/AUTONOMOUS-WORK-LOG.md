@@ -846,3 +846,32 @@ the super-heroes bench caveat recorded.
 
 Verification: extension suite 51+3 green after the mutation restore; source
 verified byte-identical to the committed TASK-26 state.
+
+### Work unit 23, 2026-08-17, No-phantom-names sweep: fourth phantom found and fixed (TASK-27)
+
+Systematic verification of EVERY hardcoded name in the rules engine against
+ground truth (local m2 artifacts, the Quarkus BOM at the plugin's own
+3.33.2.1, and web search where the artifact was absent locally). All 13
+rule-table GAs, the 5 remaining reactive GAs, REST_METHOD_ANNOTATIONS,
+NON_SERIALIZED_RETURNS and the wrapper types verified real. One phantom
+remained: quarkus-reactive-mariadb-client does not exist in any BOM version
+(3.33-3.39); quarkusio/quarkus#55695 is the still-open request for it.
+MariaDB reactive apps run quarkus-reactive-mysql-client with db-kind=mariadb,
+so the phantom mapping made real MariaDB apps stay suspect (extension join)
+or get no value credit (core). The reactiveFamilyOf javadoc even claimed the
+correct mapping while the code returned the wrong one.
+
+Fixed in both execution forms (TASK-27): value-rules.txt mariadb line now
+targets the mysql client (pinned by a loadDefault test so a phantom target
+can never regress silently); reactiveFamiliesOf returns ordered families,
+mysql-client serving {mysql, mariadb}. DoD review (adversarial agent)
+verified the family-suppression interaction (two same-GA rules collapse to
+one Match; the selected client is never suppressed) and empirically proved
+the new behavioral test fails on pre-fix code. Findings applied: core test
+pins the production resource (not just inline rules), evidence tail no
+longer claims dead weight when several clients are each selected by their
+own db-kind, deterministic family order, cross-pointer comments between the
+two encodings of the domain fact.
+
+Verification: 152 tests green (97 core + 55 deployment), full reactor
+BUILD SUCCESS.

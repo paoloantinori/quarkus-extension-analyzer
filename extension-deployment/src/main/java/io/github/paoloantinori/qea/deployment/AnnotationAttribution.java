@@ -503,44 +503,56 @@ public final class AnnotationAttribution {
             return credits;
         }
         if (reactiveDeclared.size() > 1 && !dbKindValues.isEmpty()) {
+            // Two passes so the evidence tail can distinguish the single-match case (the other
+            // declared clients really are dead weight) from a multi-datasource app where several
+            // clients are each selected by their own db-kind.
+            Map<String, String> matchedKindByGa = new LinkedHashMap<>();
             for (ExtensionReport r : reactiveSuspects) {
-                String family = reactiveFamilyOf(r.ga());
-                if (family != null && dbKindValues.stream().anyMatch(k -> k.equalsIgnoreCase(family))) {
-                    credits.put(r.ga(), "reactive-driver: hibernate-reactive is used and db-kind="
-                            + family + " selects exactly this reactive SQL client; the other declared "
-                            + "reactive clients are removable dead weight");
+                List<String> families = reactiveFamiliesOf(r.ga());
+                String matched = families.stream()
+                        .filter(f -> dbKindValues.stream().anyMatch(k -> k.equalsIgnoreCase(f)))
+                        .findFirst().orElse(null);
+                if (matched != null) {
+                    matchedKindByGa.put(r.ga(), matched);
                 }
+            }
+            for (var e : matchedKindByGa.entrySet()) {
+                credits.put(e.getKey(), "reactive-driver: hibernate-reactive is used and db-kind="
+                        + e.getValue() + " selects exactly this reactive SQL client"
+                        + (matchedKindByGa.size() == 1
+                                ? "; the other declared reactive clients are removable dead weight"
+                                : "; the other declared kinds select the other declared clients"));
             }
         }
         return credits;
     }
 
     /**
-     * The db-kind family a reactive client serves ({@code postgresql} for
-     * {@code quarkus-reactive-pg-client}, {@code mysql}/{@code mariadb} for
-     * {@code quarkus-reactive-mysql-client}, ...), or {@code null} for an unknown artifact.
+     * The db-kind families a reactive client serves ({@code postgresql} for the pg client; the
+     * mysql client serves BOTH {@code mysql} and {@code mariadb}: no separate mariadb reactive
+     * artifact exists, per the Quarkus BOM and the still-open dedicated-extension request
+     * quarkusio/quarkus#55695), or an empty list for an unknown artifact. Ordered so the
+     * evidence names a deterministic kind when both are configured. Keep in sync with the
+     * reactive family in core's value-rules.txt (same domain fact, other execution form).
      */
-    private static String reactiveFamilyOf(String ga) {
+    private static List<String> reactiveFamiliesOf(String ga) {
         String artifact = ga.substring(ga.lastIndexOf(':') + 1);
         if (artifact.equals("quarkus-reactive-pg-client")) {
-            return "postgresql";
+            return List.of("postgresql");
         }
         if (artifact.equals("quarkus-reactive-mysql-client")) {
-            return "mysql";
-        }
-        if (artifact.equals("quarkus-reactive-mariadb-client")) {
-            return "mariadb";
+            return List.of("mysql", "mariadb");
         }
         if (artifact.equals("quarkus-reactive-mssql-client")) {
-            return "mssql";
+            return List.of("mssql");
         }
         if (artifact.equals("quarkus-reactive-db2-client")) {
-            return "db2";
+            return List.of("db2");
         }
         if (artifact.equals("quarkus-reactive-oracle-client")) {
-            return "oracle";
+            return List.of("oracle");
         }
-        return null;
+        return List.of();
     }
 
     private static Set<String> collectDeclaredExtensionGas(ApplicationModel model) {

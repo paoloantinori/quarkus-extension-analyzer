@@ -12,7 +12,7 @@
 #     only ever produces a row for a GA actually present among the project's resolved dependencies
 #
 # Every target-ga below was verified to exist against the Quarkus BOM this plugin resolves against
-# (quarkus.version in plugin/pom.xml, 3.33.2.1) and/or the artifact's own bytecode, not invented from
+# (quarkus.version in the root pom, 3.33.2.1) and/or the artifact's own bytecode, not invented from
 # memory -- see backlog/tasks/task-7 for the verification trail.
 
 # --- quarkus.datasource[.<name>].db-kind -> quarkus-jdbc-<kind> (docs/DESIGN.md known-hard-case) -----
@@ -34,10 +34,14 @@ quarkus.datasource.{name}.db-kind|postgresql|io.quarkus:quarkus-jdbc-postgresql
 # two reactive clients + db-kind=postgresql must credit only -pg-, leaving -mysql- suspect as
 # removable dead weight -- verified empirically: two clients with no db-kind make the build FAIL,
 # so a buildable multi-client app always carries the explicit kind). Artifact suffixes verified
-# against the Quarkus BOM: quarkus-reactive-{pg,mysql,mariadb,mssql,db2,oracle}-client.
+# against the Quarkus BOM (3.33.2.1, the root pom's quarkus.version): reactive-{pg,mysql,mssql,db2,oracle}-client. There is NO
+# mariadb reactive artifact (quarkusio/quarkus#55695 is an open request): MariaDB apps use the
+# mysql client with db-kind=mariadb, so both kinds map to io.quarkus:quarkus-reactive-mysql-client.
+# Keep in sync with AnnotationAttribution.reactiveFamiliesOf in extension-deployment (same domain
+# fact, other execution form).
 quarkus.datasource.{name}.db-kind|postgresql|io.quarkus:quarkus-reactive-pg-client
 quarkus.datasource.{name}.db-kind|mysql|io.quarkus:quarkus-reactive-mysql-client
-quarkus.datasource.{name}.db-kind|mariadb|io.quarkus:quarkus-reactive-mariadb-client
+quarkus.datasource.{name}.db-kind|mariadb|io.quarkus:quarkus-reactive-mysql-client
 quarkus.datasource.{name}.db-kind|mssql|io.quarkus:quarkus-reactive-mssql-client
 quarkus.datasource.{name}.db-kind|db2|io.quarkus:quarkus-reactive-db2-client
 quarkus.datasource.{name}.db-kind|oracle|io.quarkus:quarkus-reactive-oracle-client

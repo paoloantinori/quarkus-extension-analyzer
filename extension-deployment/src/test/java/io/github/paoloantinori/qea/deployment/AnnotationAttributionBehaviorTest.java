@@ -807,6 +807,19 @@ class AnnotationAttributionBehaviorTest {
         assertThat(rowOf(out, REACTIVE_PG).verdict()).isEqualTo(Verdict.USED_BYTECODE);
     }
 
+    @Test
+    void mariadbDbKindCreditsTheMysqlClient() throws IOException {
+        // There is no mariadb reactive artifact: MariaDB apps run the mysql client with
+        // db-kind=mariadb, so that kind must select it (the phantom-GA fix).
+        Index idx = index();
+        AnalysisReport out = AnnotationAttribution.apply(
+                report(row(HIBERNATE_REACTIVE_PANACHE, Verdict.USED_BYTECODE),
+                        suspect(REACTIVE_PG), suspect(REACTIVE_MYSQL)),
+                idx, modelOf(REACTIVE_PG, REACTIVE_MYSQL), Set.of("mariadb"), NOWHERE);
+        assertThat(rowOf(out, REACTIVE_MYSQL).verdict()).isEqualTo(Verdict.USED_BYTECODE);
+        assertThat(rowOf(out, REACTIVE_PG).verdict()).isEqualTo(Verdict.SUSPECT);
+    }
+
     // --- FILE: rules (TASK-24: resolved under the passed project root, not the CWD) ---------------
 
     /** Fixture-path helper with LITERAL layout, deliberately independent of production's
