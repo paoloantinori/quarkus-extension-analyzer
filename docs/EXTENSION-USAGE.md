@@ -1,22 +1,25 @@
 # Quarkus extension form: usage
 
 The extension form runs the analyzer inside Quarkus augmentation (at build
-time), where it has access to ArC's authoritative bean index. This lets it
-resolve "annotation-consumer" false positives the standalone mojo cannot
-(e.g. hibernate-validator used via `@NotNull`, scheduler via `@Scheduled`),
-because ArC's build-time index knows which annotations the app actually uses.
+time), where it has access to ArC's authoritative bean index. Since TASK-28
+the annotation-consumer rules engine lives in core and BOTH forms run it (the
+mojo feeds it the bytecode-scan index); the extension form's index remains the
+more authoritative one (ArC's bean archive view of the app).
 
 ## When to use the extension vs the mojo
 
 | | Mojo (standalone) | Extension (in-build) |
 |---|---|---|
-| Use case | CI sweep over any built app, no pom change | Per-app, high-precision, automatic |
-| Annotation-consumer FP | Unresolved (reported as suspect with evidence) | **Resolved** (ArC bean index) |
+| Use case | CI sweep over any built app, no pom change | Per-app, automatic |
+| Annotation-consumer FP | **Resolved** (TASK-28: bytecode-scan index) | **Resolved** (ArC bean index) |
 | App pom change needed | No (point and run) | Yes (add the extension as a dependency) |
 | Best for | Portfolio/central CI hygiene | Per-app build integration |
 
-Both share the same `core` library, so the three-signal classification is
-identical; the extension adds the ArC annotation-consumer post-pass.
+Both share the same `core` library, so the three-signal classification AND the
+annotation-consumer pass are identical (TASK-28 moved the rules engine to core:
+one engine, two thin shells). The only remaining difference is the index each
+form feeds it: the extension passes ArC's bean index, the mojo passes the
+Jandex index built for the bytecode signal.
 
 ## How to use the extension
 

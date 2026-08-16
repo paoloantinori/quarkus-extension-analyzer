@@ -16,6 +16,7 @@
 package io.github.paoloantinori.qea.deployment;
 
 import io.github.paoloantinori.qea.plugin.Analyzer;
+import io.github.paoloantinori.qea.plugin.annotation.MavenLayout;
 import io.github.paoloantinori.qea.plugin.config.AppConfigReader;
 import io.github.paoloantinori.qea.plugin.report.AnalysisReport;
 import io.github.paoloantinori.qea.plugin.report.ExtensionReport;

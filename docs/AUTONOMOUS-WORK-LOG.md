@@ -911,3 +911,45 @@ the whole rules surface: 4 phantoms found and fixed this session
 Verification: both fresh-clone builds green with the extension firing;
 poms restored pristine (verified 0 analyzer refs); pinned-copy scratch
 removed. 152 tests green (from unit 23's build).
+
+### Work unit 25, 2026-08-17, TASK-28: annotation-consumer signal in the mojo form
+
+The mojo form's documented gap (annotation-consumer FPs unresolved) is closed
+by moving the rules engine to core and sharing it: AnnotationConsumerRules
+(RULES, probes, REST-SERIALIZER scanner, reactive join, flipSuspects) lives in
+io.github.paoloantinori.qea.plugin.annotation with no quarkus-bootstrap
+dependency, parameterized by (declaredExtensionGas, dbKindValues, projectRoot)
+instead of ApplicationModel. The extension's AnnotationAttribution is now a
+thin adapter (model -> declared GAs, pinned by an adapter test); the mojo's
+IsolatedAnalyzerRunner runs the engine post-analyze with the index built by
+the bytecode scan (BytecodeUsage.indexClasses, extracted for reuse), the
+model-derived declared set, the config-derived db-kinds, and the
+MavenProject-basedir root. The 52-test behavioral suite moved to core against
+the engine (the ApplicationModel stub is gone entirely).
+
+THE BUG THE VALIDATION CAUGHT (the night's most important find): the mojo
+initially credited NOTHING despite correct inputs. Instrumentation showed the
+join skipping with hibernate-reactive USED and pg SUSPECT in the same report -
+impossible for the source - until javap on the shaded jar showed the shade
+plugin had RELOCATED the engine's domain string literals: the bare
+io.quarkus relocation pattern prefix-matches "io.quarkus:quarkus-rest-jackson"
+(and "io.quarkus.scheduler.Scheduled"), rewriting them to
+io.github.paoloantinori.qea.internal.quarkus.* names that can never match the
+real GAs/FQCNs in the report or the index. Every rule was silently dead in the
+mojo form; rawString=false did not help (path-form prefix matching still
+applies). FIX: seven package-specific relocations with trailing dots
+(io.quarkus.bootstrap./commons./fs./maven./paths./sbom/util.), which are
+exactly the io.quarkus content embedded (verified against the jar's package
+list) and cannot collide with the domain literals. Verified post-fix by
+disassembly: 0 relocated literals, domain strings intact.
+
+Bench (mojo form, post-fix): rest-heroes suspects 5 -> 2 (info +
+micrometer-otel only; config-yaml via FILE:, reactive-pg via the join,
+rest-qute via the qute rule - all three credits visible in the report);
+rest-fights ext suspects {info, micrometer-otel} with hibernate-validator
+credited (the classic mojo-unresolvable FP, now resolved);
+resteasy-client-quickstart ZERO extension suspects with resteasy-jackson
+credited. The mojo now matches the extension form's precision on these apps.
+
+Verification: full reactor BUILD SUCCESS, 154 tests (149 core incl. the moved
+52-test behavioral suite + 5 deployment).

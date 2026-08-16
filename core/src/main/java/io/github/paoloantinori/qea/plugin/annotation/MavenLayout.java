@@ -13,45 +13,45 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.paoloantinori.qea.deployment;
+package io.github.paoloantinori.qea.plugin.annotation;
 
 import java.nio.file.Path;
 
 /**
  * The conventional Maven module layout, in one place (TASK-26). Before this, the
  * {@code src/main/resources} and {@code target/classes} idioms lived in four spellings across
- * AnnotationAttribution's FILE: probe, AnalyzerBuildStep's config lookup, and the shell's
- * classes-dir resolution; nothing forced them to move together. An empty root
- * ({@code Path.of("")}) resolves to the plain relative form, which is exactly the legacy
- * CWD-relative behavior.
+ * the annotation rules' FILE: probe, the shell's config lookup, and the classes-dir resolution;
+ * nothing forced them to move together. An empty root ({@code Path.of("")}) resolves to the
+ * plain relative form, which is exactly the legacy CWD-relative behavior. Public since TASK-28:
+ * the extension shell (another module) consumes it too.
  */
-final class MavenLayout {
+public final class MavenLayout {
 
     private MavenLayout() {
     }
 
     /** {@code <root>/src/main/resources/<name>}. */
-    static Path resourcesFile(Path root, String name) {
+    public static Path resourcesFile(Path root, String name) {
         return root.resolve(Path.of("src", "main", "resources", name));
     }
 
     /** {@code <root>/target/classes/<name>}. */
-    static Path classesFile(Path root, String name) {
+    public static Path classesFile(Path root, String name) {
         return root.resolve(Path.of("target", "classes", name));
     }
 
     /** {@code <root>/target/classes}. */
-    static Path classesDir(Path root) {
+    public static Path classesDir(Path root) {
         return root.resolve(Path.of("target", "classes"));
     }
 
     /** {@code <root>/target/test-classes}. */
-    static Path testClassesDir(Path root) {
+    public static Path testClassesDir(Path root) {
         return root.resolve(Path.of("target", "test-classes"));
     }
 
     /** Whether the path IS a main classes dir ({@code .../target/classes}, by name elements). */
-    static boolean isMainClassesDir(Path path) {
+    public static boolean isMainClassesDir(Path path) {
         return path.endsWith(Path.of("target", "classes"));
     }
 }

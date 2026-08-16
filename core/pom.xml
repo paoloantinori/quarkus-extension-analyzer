@@ -67,5 +67,10 @@
       <version>3.27.7</version>
       <scope>test</scope>
     </dependency>
-  </dependencies>
-</project>
+      <dependency>
+      <groupId>org.ow2.asm</groupId>
+      <artifactId>asm</artifactId>
+      <version>9.9</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies></project>

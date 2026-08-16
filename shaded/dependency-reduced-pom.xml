@@ -30,8 +30,32 @@
               <createDependencyReducedPom>true</createDependencyReducedPom>
               <relocations>
                 <relocation>
-                  <pattern>io.quarkus</pattern>
-                  <shadedPattern>io.github.paoloantinori.qea.internal.quarkus</shadedPattern>
+                  <pattern>io.quarkus.bootstrap.</pattern>
+                  <shadedPattern>io.github.paoloantinori.qea.internal.quarkus.bootstrap.</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>io.quarkus.commons.</pattern>
+                  <shadedPattern>io.github.paoloantinori.qea.internal.quarkus.commons.</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>io.quarkus.fs.</pattern>
+                  <shadedPattern>io.github.paoloantinori.qea.internal.quarkus.fs.</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>io.quarkus.maven.</pattern>
+                  <shadedPattern>io.github.paoloantinori.qea.internal.quarkus.maven.</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>io.quarkus.paths.</pattern>
+                  <shadedPattern>io.github.paoloantinori.qea.internal.quarkus.paths.</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>io.quarkus.sbom.</pattern>
+                  <shadedPattern>io.github.paoloantinori.qea.internal.quarkus.sbom.</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>io.quarkus.util.</pattern>
+                  <shadedPattern>io.github.paoloantinori.qea.internal.quarkus.util.</shadedPattern>
                 </relocation>
                 <relocation>
                   <pattern>org.jboss.jandex</pattern>

@@ -67,6 +67,19 @@ public final class BytecodeUsage {
      * (TASK-12: previously missed because {@code declaredAnnotations()} excluded them).
      */
     public static Set<String> referencedTypesViaJandex(List<Path> classesDirs) throws IOException {
+        Index index = indexClasses(classesDirs);
+        if (index == null) {
+            return Set.of();
+        }
+        return referencedTypes(index);
+    }
+
+    /**
+     * A Jandex index over every .class file under the given directories, or null when none were
+     * found. Shared by the bytecode signal and (TASK-28) the annotation-consumer pass in the mojo
+     * form, which needs the same app index the extension form gets from ArC.
+     */
+    public static Index indexClasses(List<Path> classesDirs) throws IOException {
         Indexer indexer = new Indexer();
         boolean any = false;
         for (Path dir : classesDirs) {
@@ -84,11 +97,7 @@ public final class BytecodeUsage {
                 }
             }
         }
-        if (!any) {
-            return Set.of();
-        }
-        Index index = indexer.complete();
-        return referencedTypes(index);
+        return any ? indexer.complete() : null;
     }
 
     /**

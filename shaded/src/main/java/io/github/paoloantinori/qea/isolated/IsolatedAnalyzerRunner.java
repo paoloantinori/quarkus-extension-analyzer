@@ -102,6 +102,7 @@ public final class IsolatedAnalyzerRunner {
         } finally {
             executor.shutdown();
         }
+        report = applyAnnotationConsumers(model, project, classesDirs, appConfig, report);
         if (fragmentsDir != null) {
             io.github.paoloantinori.qea.plugin.report.IgnoreFragments
                     .writeFragments(report.ignoreRecommendations(), fragmentsDir);
@@ -111,6 +112,31 @@ public final class IsolatedAnalyzerRunner {
 
     /** The serialized analysis output: JSON for tooling, text for the build log. */
     public record ReportBundle(String json, String text) {
+    }
+
+    /**
+     * TASK-28: the annotation-consumer pass in the mojo form. The engine is shared with the
+     * extension form (core's AnnotationConsumerRules); this derives the mojo-side inputs: the
+     * app index from the same bytecode-scan machinery (null when the project has no compiled
+     * classes yet, in which case only the non-index rules can fire), the declared-extension set
+     * from the resolved model, the db-kind values from the app config, and the project root from
+     * the MavenProject (always the module being analyzed, unlike the process CWD).
+     */
+    private static AnalysisReport applyAnnotationConsumers(ApplicationModel model, MavenProject project,
+            List<Path> classesDirs, AppConfigReader appConfig, AnalysisReport report) throws IOException {
+        org.jboss.jandex.Index appIndex = io.github.paoloantinori.qea.plugin.bytecode.BytecodeUsage
+                .indexClasses(classesDirs);
+        java.util.Set<String> declaredExtensionGas = new java.util.TreeSet<>();
+        for (io.quarkus.maven.dependency.ResolvedDependency d : model.getDependencies()) {
+            if (d.isRuntimeExtensionArtifact() && d.isDirect()) {
+                declaredExtensionGas.add(d.getGroupId() + ":" + d.getArtifactId());
+            }
+        }
+        return io.github.paoloantinori.qea.plugin.annotation.AnnotationConsumerRules.apply(report,
+                appIndex != null ? appIndex : new org.jboss.jandex.Indexer().complete(),
+                declaredExtensionGas,
+                io.github.paoloantinori.qea.plugin.annotation.AnnotationConsumerRules.dbKindValues(appConfig),
+                project.getBasedir().toPath());
     }
 
     private static ApplicationModel resolveModel(MavenSession session, MavenProject project,

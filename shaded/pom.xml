@@ -87,9 +87,42 @@
               <relocations>
                 <!-- The whole point of TASK-20: our embedded Quarkus bootstrap must be invisible
                      to the project realm's own (possibly different) Quarkus classes. -->
+                <!-- The whole point of TASK-20: our embedded Quarkus bootstrap must be invisible
+                     to the project realm's own (possibly different) Quarkus classes. The patterns
+                     are PACKAGE-specific with a trailing dot on purpose: a bare "io.quarkus"
+                     pattern prefix-matches the annotation engine's DOMAIN string literals
+                     ("io.quarkus:quarkus-rest-jackson", "io.quarkus.scheduler.Scheduled"), which
+                     the shader rewrites into internal.* names that can never match the real GAs
+                     and FQCNs in the report and the app index, silently killing every rule in the
+                     mojo form (found while validating TASK-28). These seven packages are exactly
+                     the io.quarkus.* content embedded here (verified against the shaded jar). -->
                 <relocation>
-                  <pattern>io.quarkus</pattern>
-                  <shadedPattern>io.github.paoloantinori.qea.internal.quarkus</shadedPattern>
+                  <pattern>io.quarkus.bootstrap.</pattern>
+                  <shadedPattern>io.github.paoloantinori.qea.internal.quarkus.bootstrap.</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>io.quarkus.commons.</pattern>
+                  <shadedPattern>io.github.paoloantinori.qea.internal.quarkus.commons.</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>io.quarkus.fs.</pattern>
+                  <shadedPattern>io.github.paoloantinori.qea.internal.quarkus.fs.</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>io.quarkus.maven.</pattern>
+                  <shadedPattern>io.github.paoloantinori.qea.internal.quarkus.maven.</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>io.quarkus.paths.</pattern>
+                  <shadedPattern>io.github.paoloantinori.qea.internal.quarkus.paths.</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>io.quarkus.sbom.</pattern>
+                  <shadedPattern>io.github.paoloantinori.qea.internal.quarkus.sbom.</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>io.quarkus.util.</pattern>
+                  <shadedPattern>io.github.paoloantinori.qea.internal.quarkus.util.</shadedPattern>
                 </relocation>
                 <!-- Smallrye/jandex transitives are not typically present in project realms, but
                      relocating them too keeps the shaded jar hermetic. -->

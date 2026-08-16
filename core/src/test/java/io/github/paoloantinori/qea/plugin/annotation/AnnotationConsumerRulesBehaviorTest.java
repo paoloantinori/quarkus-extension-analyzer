@@ -13,18 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.paoloantinori.qea.deployment;
+package io.github.paoloantinori.qea.plugin.annotation;
 
 import io.github.paoloantinori.qea.plugin.report.AnalysisReport;
 import io.github.paoloantinori.qea.plugin.report.ExtensionReport;
 import io.github.paoloantinori.qea.plugin.report.Verdict;
-import io.quarkus.bootstrap.model.ApplicationModel;
-import io.quarkus.bootstrap.model.ExtensionCapabilities;
-import io.quarkus.bootstrap.model.ExtensionDevModeConfig;
-import io.quarkus.bootstrap.model.PlatformImports;
-import io.quarkus.maven.dependency.ArtifactKey;
-import io.quarkus.maven.dependency.ResolvedDependency;
-import io.quarkus.maven.dependency.ResolvedDependencyBuilder;
 import org.jboss.jandex.Index;
 import org.jboss.jandex.Indexer;
 import org.junit.jupiter.api.Test;
@@ -36,8 +29,6 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -45,7 +36,7 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * TASK-25: behavioral test suite for {@link AnnotationAttribution#apply}. This is the coverage the
+ * Behavioral test suite for {@link AnnotationConsumerRules#apply} (born as TASK-25's suite for the extension-form AnnotationAttribution; TASK-28 moved the engine to core so both execution forms share it). This is the coverage the
  * /code-review high finding 7 demanded: the rules engine shipped with zero behavioral coverage
  * (the adjacent structural test never called {@code apply()}, never built an index with
  * {@code @Path} or {@code @RegisterRestClient}), which is how two regressions from the skeptic
@@ -53,8 +44,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * {@code RestResponse<Pojo>} false negative).
  *
  * <p>Each test generates .class bytes with ASM for the exact app shapes the rules recognize, feeds
- * them through a real Jandex {@link Indexer}, and calls {@code apply()} end-to-end against a
- * minimal {@link ApplicationModel} and a report with SUSPECT rows. The generated classes carry the
+ * them through a real Jandex {@link Indexer}, and calls {@code apply()} end-to-end with a
+ * declared-GA set and a report with SUSPECT rows. The generated classes carry the
  * REAL framework FQCNs ({@code jakarta.ws.rs.Path}, {@code io.smallrye.mutiny.Uni}, ...) because
  * {@code annotationFamilyPresent} probes exact names; stand-in names would silently match nothing.
  * Generic returns ({@code Uni<Pojo>}) are emitted as descriptor + generic signature, since Java
@@ -62,7 +53,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * fail the JVM verifier if loaded; Jandex reads no Code attribute, so the fixtures must never be
  * reused anywhere that loads classes.
  */
-class AnnotationAttributionBehaviorTest {
+class AnnotationConsumerRulesBehaviorTest {
 
     // Real GAs the rules table targets (so the tests exercise the production rule entries).
     private static final String REST_JACKSON = "io.quarkus:quarkus-rest-jackson";
@@ -330,32 +321,6 @@ class AnnotationAttributionBehaviorTest {
         return indexer.complete();
     }
 
-    // --- minimal ApplicationModel (apply() reads only getDependencies for the declared-GA set) ----
-
-    private static ApplicationModel modelOf(String... extensionGas) {
-        List<ResolvedDependency> deps = Arrays.stream(extensionGas).map(ga -> {
-            String[] parts = ga.split(":");
-            return ResolvedDependencyBuilder.newInstance()
-                    .setGroupId(parts[0]).setArtifactId(parts[1]).setVersion("1.0")
-                    .setRuntimeExtensionArtifact().setDirect(true).build();
-        }).toList();
-        return new ApplicationModel() {
-            @Override public ResolvedDependency getAppArtifact() { return null; }
-            @Override public Collection<ResolvedDependency> getDependencies() { return deps; }
-            @Override public Iterable<ResolvedDependency> getDependencies(int flags) { return deps; }
-            @Override public Iterable<ResolvedDependency> getDependenciesWithAnyFlag(int flags) { return deps; }
-            @Override public Collection<ResolvedDependency> getRuntimeDependencies() { return deps; }
-            @Override public PlatformImports getPlatforms() { return null; }
-            @Override public Collection<ExtensionCapabilities> getExtensionCapabilities() { return List.of(); }
-            @Override public Set<ArtifactKey> getParentFirst() { return Set.of(); }
-            @Override public Set<ArtifactKey> getRunnerParentFirst() { return Set.of(); }
-            @Override public Set<ArtifactKey> getLowerPriorityArtifacts() { return Set.of(); }
-            @Override public Set<ArtifactKey> getReloadableWorkspaceDependencies() { return Set.of(); }
-            @Override public Map<ArtifactKey, Set<String>> getRemovedResources() { return Map.of(); }
-            @Override public Collection<ExtensionDevModeConfig> getExtensionDevModeConfig() { return List.of(); }
-        };
-    }
-
     // --- report factory -----------------------------------------------------------------------------
 
     private static ExtensionReport suspect(String ga) {
@@ -394,7 +359,7 @@ class AnnotationAttributionBehaviorTest {
 
     /** The row for {@code ga} after running apply() over a single-suspect report for it. */
     private static ExtensionReport applied(Index index, String ga) {
-        return rowOf(AnnotationAttribution.apply(report(suspect(ga)), index, modelOf(ga), Set.of(), NOWHERE), ga);
+        return rowOf(AnnotationConsumerRules.apply(report(suspect(ga)), index, Set.of(ga), Set.of(), NOWHERE), ga);
     }
 
     /** Single-suspect shorthand: {@code ga} is declared, suspected, and must flip to used. */
@@ -504,9 +469,9 @@ class AnnotationAttributionBehaviorTest {
     @Test
     void pathCreditsResteasyFamilyTogether() throws IOException {
         Index idx = index(pathResource("res.J", rawRet(POJO)));
-        AnalysisReport out = AnnotationAttribution.apply(
+        AnalysisReport out = AnnotationConsumerRules.apply(
                 report(suspect(QUARKUS_REST), suspect(RESTEASY), suspect(RESTEASY_JACKSON)),
-                idx, modelOf(QUARKUS_REST, RESTEASY, RESTEASY_JACKSON), Set.of(), NOWHERE);
+                idx, Set.of(QUARKUS_REST, RESTEASY, RESTEASY_JACKSON), Set.of(), NOWHERE);
         assertThat(rowOf(out, QUARKUS_REST).verdict()).isEqualTo(Verdict.USED_BYTECODE);
         assertThat(rowOf(out, RESTEASY).verdict()).isEqualTo(Verdict.USED_BYTECODE);
         assertThat(rowOf(out, RESTEASY_JACKSON).verdict()).isEqualTo(Verdict.USED_BYTECODE);
@@ -515,10 +480,10 @@ class AnnotationAttributionBehaviorTest {
     @Test
     void undeclaredExtensionIsNeverCredited() throws IOException {
         // The guard: a rule fires only when its target GA is a declared extension, so a report
-        // row for an extension the model does not declare (empty modelOf here) must stay suspect.
+        // row for an extension that is not declared (empty declared set here) must stay suspect.
         Index idx = index(pathResource("res.K", rawRet(POJO)));
-        AnalysisReport out = AnnotationAttribution.apply(report(suspect(REST_JACKSON)), idx,
-                modelOf(), Set.of(), NOWHERE);
+        AnalysisReport out = AnnotationConsumerRules.apply(report(suspect(REST_JACKSON)), idx,
+                Set.of(), Set.of(), NOWHERE);
         assertThat(rowOf(out, REST_JACKSON).verdict()).isEqualTo(Verdict.SUSPECT);
     }
 
@@ -526,7 +491,7 @@ class AnnotationAttributionBehaviorTest {
     void noAnnotationsNoJoinReturnsReportUnchanged() throws IOException {
         // Identity path: nothing fired, apply() returns the same instance untouched.
         AnalysisReport in = report(suspect(REST_JACKSON));
-        assertThat(AnnotationAttribution.apply(in, STUB_ONLY_INDEX, modelOf(REST_JACKSON), Set.of(), NOWHERE))
+        assertThat(AnnotationConsumerRules.apply(in, STUB_ONLY_INDEX, Set.of(REST_JACKSON), Set.of(), NOWHERE))
                 .isSameAs(in);
     }
 
@@ -558,9 +523,9 @@ class AnnotationAttributionBehaviorTest {
     @Test
     void singleDeclaredReactiveClientWithHibernateReactiveUsedIsCredited() throws IOException {
         Index idx = STUB_ONLY_INDEX;
-        AnalysisReport out = AnnotationAttribution.apply(
+        AnalysisReport out = AnnotationConsumerRules.apply(
                 report(row(HIBERNATE_REACTIVE_PANACHE, Verdict.USED_BYTECODE), suspect(REACTIVE_PG)),
-                idx, modelOf(REACTIVE_PG), Set.of(), NOWHERE);
+                idx, Set.of(REACTIVE_PG), Set.of(), NOWHERE);
         assertThat(rowOf(out, REACTIVE_PG).verdict()).isEqualTo(Verdict.USED_BYTECODE);
     }
 
@@ -569,18 +534,18 @@ class AnnotationAttributionBehaviorTest {
         // The join fires only when hibernate-reactive is USED; without it there is no evidence
         // the reactive client is load-bearing.
         Index idx = STUB_ONLY_INDEX;
-        AnalysisReport out = AnnotationAttribution.apply(report(suspect(REACTIVE_PG)),
-                idx, modelOf(REACTIVE_PG), Set.of(), NOWHERE);
+        AnalysisReport out = AnnotationConsumerRules.apply(report(suspect(REACTIVE_PG)),
+                idx, Set.of(REACTIVE_PG), Set.of(), NOWHERE);
         assertThat(rowOf(out, REACTIVE_PG).verdict()).isEqualTo(Verdict.SUSPECT);
     }
 
     @Test
     void multipleReactiveClientsWithDbKindCreditOnlyTheMatch() throws IOException {
         Index idx = STUB_ONLY_INDEX;
-        AnalysisReport out = AnnotationAttribution.apply(
+        AnalysisReport out = AnnotationConsumerRules.apply(
                 report(row(HIBERNATE_REACTIVE_PANACHE, Verdict.USED_BYTECODE),
                         suspect(REACTIVE_PG), suspect(REACTIVE_MYSQL)),
-                idx, modelOf(REACTIVE_PG, REACTIVE_MYSQL), Set.of("postgresql"), NOWHERE);
+                idx, Set.of(REACTIVE_PG, REACTIVE_MYSQL), Set.of("postgresql"), NOWHERE);
         assertThat(rowOf(out, REACTIVE_PG).verdict()).isEqualTo(Verdict.USED_BYTECODE);
         assertThat(rowOf(out, REACTIVE_MYSQL).verdict()).isEqualTo(Verdict.SUSPECT);
     }
@@ -589,10 +554,10 @@ class AnnotationAttributionBehaviorTest {
     void multipleReactiveClientsWithNoDbKindStaySuspect() throws IOException {
         // Ambiguity must not manufacture a verdict (TASK-23).
         Index idx = STUB_ONLY_INDEX;
-        AnalysisReport out = AnnotationAttribution.apply(
+        AnalysisReport out = AnnotationConsumerRules.apply(
                 report(row(HIBERNATE_REACTIVE_PANACHE, Verdict.USED_BYTECODE),
                         suspect(REACTIVE_PG), suspect(REACTIVE_MYSQL)),
-                idx, modelOf(REACTIVE_PG, REACTIVE_MYSQL), Set.of(), NOWHERE);
+                idx, Set.of(REACTIVE_PG, REACTIVE_MYSQL), Set.of(), NOWHERE);
         assertThat(rowOf(out, REACTIVE_PG).verdict()).isEqualTo(Verdict.SUSPECT);
         assertThat(rowOf(out, REACTIVE_MYSQL).verdict()).isEqualTo(Verdict.SUSPECT);
     }
@@ -607,8 +572,8 @@ class AnnotationAttributionBehaviorTest {
                         "jakarta.validation:jakarta.validation-api",
                         List.of("io.quarkus:quarkus-hibernate-validator"))),
                 List.of("io.lib.Marker"));
-        AnalysisReport out = AnnotationAttribution.apply(report(suspectWithHints), idx,
-                modelOf(REST_JACKSON), Set.of(), NOWHERE);
+        AnalysisReport out = AnnotationConsumerRules.apply(report(suspectWithHints), idx,
+                Set.of(REST_JACKSON), Set.of(), NOWHERE);
         ExtensionReport flipped = out.dependencies().get(0);
         assertThat(flipped.verdict()).isEqualTo(Verdict.USED_BYTECODE);
         // Shared-jar hints are suspect-row-only evidence and must not survive the flip.
@@ -622,9 +587,9 @@ class AnnotationAttributionBehaviorTest {
     @Test
     void summariesAreRecomputedAfterTheFlip() throws IOException {
         Index idx = index(pathResource("res.P", rawRet(POJO)));
-        AnalysisReport out = AnnotationAttribution.apply(
+        AnalysisReport out = AnnotationConsumerRules.apply(
                 report(suspect(REST_JACKSON), suspect(HIBERNATE_VALIDATOR)),
-                idx, modelOf(REST_JACKSON, HIBERNATE_VALIDATOR), Set.of(), NOWHERE);
+                idx, Set.of(REST_JACKSON, HIBERNATE_VALIDATOR), Set.of(), NOWHERE);
         // Exactly one row flips: the serializer (via REST-SERIALIZER). The validator stays
         // suspect (the index has no validation annotation), and the recomputed summaries must
         // reflect that split.
@@ -643,8 +608,8 @@ class AnnotationAttributionBehaviorTest {
                 Verdict.USED_CONFIG, false, Set.of("jakarta.persistence.jdbc.url"),
                 List.of("jakarta.persistence.jdbc.url"), Set.of(), List.of(), false, List.of(),
                 "config signal", null, null, List.of(), List.of());
-        AnalysisReport out = AnnotationAttribution.apply(report(alreadyUsed), idx,
-                modelOf(RESTEASY_JACKSON), Set.of(), NOWHERE);
+        AnalysisReport out = AnnotationConsumerRules.apply(report(alreadyUsed), idx,
+                Set.of(RESTEASY_JACKSON), Set.of(), NOWHERE);
         ExtensionReport untouched = rowOf(out, RESTEASY_JACKSON);
         assertThat(untouched.verdict()).isEqualTo(Verdict.USED_CONFIG);
         assertThat(untouched.note()).isEqualTo("config signal");
@@ -656,9 +621,9 @@ class AnnotationAttributionBehaviorTest {
         // flipSuspects partitions rows by quarkusExtension and rebuilds both summaries: a plain
         // jar row must never receive a credit but must survive the rebuild counted as suspect.
         Index idx = index(pathResource("res.R", rawRet(POJO)));
-        AnalysisReport out = AnnotationAttribution.apply(
+        AnalysisReport out = AnnotationConsumerRules.apply(
                 report(suspect(REST_JACKSON), plainJarSuspect("com.acme:plain-lib")),
-                idx, modelOf(REST_JACKSON), Set.of(), NOWHERE);
+                idx, Set.of(REST_JACKSON), Set.of(), NOWHERE);
         assertThat(rowOf(out, "com.acme:plain-lib").verdict()).isEqualTo(Verdict.SUSPECT);
         assertThat(out.extensions().usedBytecode()).isEqualTo(1);
         assertThat(out.plainJars().suspect()).isEqualTo(1);
@@ -780,20 +745,20 @@ class AnnotationAttributionBehaviorTest {
         // sibling already credited by another signal, the leftover suspect stays suspect absent
         // an explicit db-kind (crediting it would mark dead weight as load-bearing).
         Index idx = index();
-        AnalysisReport out = AnnotationAttribution.apply(
+        AnalysisReport out = AnnotationConsumerRules.apply(
                 report(row(HIBERNATE_REACTIVE_PANACHE, Verdict.USED_BYTECODE),
                         row(REACTIVE_MYSQL, Verdict.USED_BYTECODE), suspect(REACTIVE_PG)),
-                idx, modelOf(REACTIVE_PG, REACTIVE_MYSQL), Set.of(), NOWHERE);
+                idx, Set.of(REACTIVE_PG, REACTIVE_MYSQL), Set.of(), NOWHERE);
         assertThat(rowOf(out, REACTIVE_PG).verdict()).isEqualTo(Verdict.SUSPECT);
     }
 
     @Test
     void dbKindMatchingIsCaseInsensitive() throws IOException {
         Index idx = index();
-        AnalysisReport out = AnnotationAttribution.apply(
+        AnalysisReport out = AnnotationConsumerRules.apply(
                 report(row(HIBERNATE_REACTIVE_PANACHE, Verdict.USED_BYTECODE),
                         suspect(REACTIVE_PG), suspect(REACTIVE_MYSQL)),
-                idx, modelOf(REACTIVE_PG, REACTIVE_MYSQL), Set.of("PostgreSQL"), NOWHERE);
+                idx, Set.of(REACTIVE_PG, REACTIVE_MYSQL), Set.of("PostgreSQL"), NOWHERE);
         assertThat(rowOf(out, REACTIVE_PG).verdict()).isEqualTo(Verdict.USED_BYTECODE);
         assertThat(rowOf(out, REACTIVE_MYSQL).verdict()).isEqualTo(Verdict.SUSPECT);
     }
@@ -801,9 +766,9 @@ class AnnotationAttributionBehaviorTest {
     @Test
     void nonPanacheHibernateReactiveAlsoDrivesTheJoin() throws IOException {
         Index idx = index();
-        AnalysisReport out = AnnotationAttribution.apply(
+        AnalysisReport out = AnnotationConsumerRules.apply(
                 report(row(HIBERNATE_REACTIVE, Verdict.USED_BYTECODE), suspect(REACTIVE_PG)),
-                idx, modelOf(REACTIVE_PG), Set.of(), NOWHERE);
+                idx, Set.of(REACTIVE_PG), Set.of(), NOWHERE);
         assertThat(rowOf(out, REACTIVE_PG).verdict()).isEqualTo(Verdict.USED_BYTECODE);
     }
 
@@ -812,10 +777,10 @@ class AnnotationAttributionBehaviorTest {
         // There is no mariadb reactive artifact: MariaDB apps run the mysql client with
         // db-kind=mariadb, so that kind must select it (the phantom-GA fix).
         Index idx = index();
-        AnalysisReport out = AnnotationAttribution.apply(
+        AnalysisReport out = AnnotationConsumerRules.apply(
                 report(row(HIBERNATE_REACTIVE_PANACHE, Verdict.USED_BYTECODE),
                         suspect(REACTIVE_PG), suspect(REACTIVE_MYSQL)),
-                idx, modelOf(REACTIVE_PG, REACTIVE_MYSQL), Set.of("mariadb"), NOWHERE);
+                idx, Set.of(REACTIVE_PG, REACTIVE_MYSQL), Set.of("mariadb"), NOWHERE);
         assertThat(rowOf(out, REACTIVE_MYSQL).verdict()).isEqualTo(Verdict.USED_BYTECODE);
         assertThat(rowOf(out, REACTIVE_PG).verdict()).isEqualTo(Verdict.SUSPECT);
     }
@@ -837,8 +802,8 @@ class AnnotationAttributionBehaviorTest {
     void yamlInProjectRootResourcesCreditsConfigYaml(@TempDir Path moduleRoot) throws IOException {
         Files.createDirectories(resources("application.yml", moduleRoot).getParent());
         Files.writeString(resources("application.yml", moduleRoot), "quarkus: {}\n");
-        AnalysisReport out = AnnotationAttribution.apply(report(suspect(CONFIG_YAML)),
-                STUB_ONLY_INDEX, modelOf(CONFIG_YAML), Set.of(), moduleRoot);
+        AnalysisReport out = AnnotationConsumerRules.apply(report(suspect(CONFIG_YAML)),
+                STUB_ONLY_INDEX, Set.of(CONFIG_YAML), Set.of(), moduleRoot);
         assertThat(rowOf(out, CONFIG_YAML).verdict()).isEqualTo(Verdict.USED_BYTECODE);
     }
 
@@ -846,8 +811,8 @@ class AnnotationAttributionBehaviorTest {
     void yamlInTargetClassesAlsoCreditsConfigYaml(@TempDir Path moduleRoot) throws IOException {
         Files.createDirectories(classes("application.yaml", moduleRoot).getParent());
         Files.writeString(classes("application.yaml", moduleRoot), "quarkus: {}\n");
-        AnalysisReport out = AnnotationAttribution.apply(report(suspect(CONFIG_YAML)),
-                STUB_ONLY_INDEX, modelOf(CONFIG_YAML), Set.of(), moduleRoot);
+        AnalysisReport out = AnnotationConsumerRules.apply(report(suspect(CONFIG_YAML)),
+                STUB_ONLY_INDEX, Set.of(CONFIG_YAML), Set.of(), moduleRoot);
         assertThat(rowOf(out, CONFIG_YAML).verdict()).isEqualTo(Verdict.USED_BYTECODE);
     }
 
@@ -860,15 +825,15 @@ class AnnotationAttributionBehaviorTest {
         // configFilePresent unit tests below, which do not depend on the surefire CWD.)
         Files.createDirectories(resources("application.yml", reactorRoot).getParent());
         Files.writeString(resources("application.yml", reactorRoot), "quarkus: {}\n");
-        AnalysisReport out = AnnotationAttribution.apply(report(suspect(CONFIG_YAML)),
-                STUB_ONLY_INDEX, modelOf(CONFIG_YAML), Set.of(), otherModule);
+        AnalysisReport out = AnnotationConsumerRules.apply(report(suspect(CONFIG_YAML)),
+                STUB_ONLY_INDEX, Set.of(CONFIG_YAML), Set.of(), otherModule);
         assertThat(rowOf(out, CONFIG_YAML).verdict()).isEqualTo(Verdict.SUSPECT);
     }
 
     @Test
     void noYamlAnywhereLeavesConfigYamlSuspect(@TempDir Path moduleRoot) throws IOException {
-        AnalysisReport out = AnnotationAttribution.apply(report(suspect(CONFIG_YAML)),
-                STUB_ONLY_INDEX, modelOf(CONFIG_YAML), Set.of(), moduleRoot);
+        AnalysisReport out = AnnotationConsumerRules.apply(report(suspect(CONFIG_YAML)),
+                STUB_ONLY_INDEX, Set.of(CONFIG_YAML), Set.of(), moduleRoot);
         assertThat(rowOf(out, CONFIG_YAML).verdict()).isEqualTo(Verdict.SUSPECT);
     }
 
@@ -879,17 +844,17 @@ class AnnotationAttributionBehaviorTest {
         // passed root, in the two conventional locations, for both file spellings.
         Files.createDirectories(resources("application.yml", withYml).getParent());
         Files.writeString(resources("application.yml", withYml), "q: v\n");
-        assertThat(AnnotationAttribution.configFilePresent("FILE:application.yml", withYml)).isTrue();
-        assertThat(AnnotationAttribution.configFilePresent("FILE:application.yml", without)).isFalse();
-        assertThat(AnnotationAttribution.configFilePresent("FILE:application.yaml", withYml)).isFalse();
-        assertThat(AnnotationAttribution.configFilePresent("FILE:application.yml", NOWHERE)).isFalse();
+        assertThat(AnnotationConsumerRules.configFilePresent("FILE:application.yml", withYml)).isTrue();
+        assertThat(AnnotationConsumerRules.configFilePresent("FILE:application.yml", without)).isFalse();
+        assertThat(AnnotationConsumerRules.configFilePresent("FILE:application.yaml", withYml)).isFalse();
+        assertThat(AnnotationConsumerRules.configFilePresent("FILE:application.yml", NOWHERE)).isFalse();
     }
 
     @Test
     void configFilePresentAlsoFindsTargetClassesCopy(@TempDir Path moduleRoot) throws IOException {
         Files.createDirectories(classes("application.yaml", moduleRoot).getParent());
         Files.writeString(classes("application.yaml", moduleRoot), "q: v\n");
-        assertThat(AnnotationAttribution.configFilePresent("FILE:application.yaml", moduleRoot)).isTrue();
-        assertThat(AnnotationAttribution.configFilePresent("FILE:application.yml", moduleRoot)).isFalse();
+        assertThat(AnnotationConsumerRules.configFilePresent("FILE:application.yaml", moduleRoot)).isTrue();
+        assertThat(AnnotationConsumerRules.configFilePresent("FILE:application.yml", moduleRoot)).isFalse();
     }
 }
