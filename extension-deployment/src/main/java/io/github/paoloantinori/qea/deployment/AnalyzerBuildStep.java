@@ -98,11 +98,7 @@ public final class AnalyzerBuildStep {
         // the process CWD: a build invoked as `mvn -f <module>/pom.xml` from another directory keeps
         // the caller's CWD, and CWD-relative target/classes would then miss (same class of bug as the
         // config lookup: observed as used-config=0 and a 19-suspect report on rest-fights).
-        Path projectRoot = model.getAppArtifact() != null && model.getAppArtifact().getResolvedPaths() != null
-                ? model.getAppArtifact().getResolvedPaths().iterator().hasNext()
-                        ? firstExistingProjectRoot(model)
-                        : Path.of("")
-                : Path.of("");
+        Path projectRoot = firstExistingProjectRoot(model);
         List<Path> classesDirs = new ArrayList<>();
         Path mainClasses = projectRoot.resolve("target/classes");
         if (Files.isDirectory(mainClasses)) {
@@ -137,7 +133,8 @@ public final class AnalyzerBuildStep {
                 dbKindValues.addAll(e.getValue());
             }
         }
-        report = AnnotationAttribution.apply(report, beanArchiveIndex.getIndex(), model, dbKindValues);
+        report = AnnotationAttribution.apply(report, beanArchiveIndex.getIndex(), model, dbKindValues,
+                projectRoot);
 
         // Emit the report via JBoss Logging (the canonical Quarkus build-time log channel,
         // visible in the build output; System.out may be redirected by the build harness).
@@ -164,9 +161,14 @@ public final class AnalyzerBuildStep {
     /**
      * The project root containing the app being augmented, derived from the ApplicationModel's app
      * artifact resolved paths (a target/classes directory inside the module), falling back to the
-     * process CWD when the model carries no usable path.
+     * process CWD ({@code Path.of("")}) when the model carries no app artifact, no resolved
+     * paths, or no usable directory.
      */
     private static Path firstExistingProjectRoot(ApplicationModel model) {
+        if (model.getAppArtifact() == null || model.getAppArtifact().getResolvedPaths() == null
+                || !model.getAppArtifact().getResolvedPaths().iterator().hasNext()) {
+            return Path.of("");
+        }
         for (var p : model.getAppArtifact().getResolvedPaths()) {
             Path path = p.toAbsolutePath().normalize();
             // resolved paths may be the module dir itself, target/classes, or a jar

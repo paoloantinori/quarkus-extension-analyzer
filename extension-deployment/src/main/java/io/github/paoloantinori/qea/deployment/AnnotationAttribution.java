@@ -108,9 +108,15 @@ public final class AnnotationAttribution {
      *                    config (any profile), used by the TASK-23 disambiguation when multiple
      *                    reactive clients are declared: the client matching the configured kind is
      *                    credited, the others stay suspect. Empty set = no explicit db-kind.
+     * @param projectRoot the root of the module being augmented (TASK-24): the FILE: rules probe
+     *                   {@code src/main/resources} and {@code target/classes} under THIS root, not
+     *                   the process CWD (in a multi-module reactor the CWD is the reactor root, so
+     *                   a CWD-relative probe inspected the wrong module's resources). The empty
+     *                   path ({@code Path.of("")}) preserves the legacy CWD-relative behavior for
+     *                   callers that cannot derive a root.
      */
     public static AnalysisReport apply(AnalysisReport report, IndexView beanIndex, ApplicationModel model,
-            Set<String> dbKindValues) {
+            Set<String> dbKindValues, java.nio.file.Path projectRoot) {
         Set<String> declaredExtensionGas = collectDeclaredExtensionGas(model);
 
         // Collect which annotation prefixes are present in the bean index.
@@ -124,7 +130,10 @@ public final class AnnotationAttribution {
             // known representative types per family once per DISTINCT prefix (code-review finding
             // 9: the shared jakarta.ws.rs prefix was probed 3x and restEndpointsReturningPojos ran
             // twice per augmentation; the probe is deterministic and side-effect-free).
-            if (annotationFamilyPresent(beanIndex, prefix)) {
+            boolean present = prefix.startsWith("FILE:")
+                    ? configFilePresent(prefix, projectRoot)
+                    : annotationFamilyPresent(beanIndex, prefix);
+            if (present) {
                 presentAnnotationPrefixes.add(prefix);
             }
         }
@@ -194,8 +203,27 @@ public final class AnnotationAttribution {
     }
 
     /**
+     * The FILE: rule probe (TASK-24): whether the config file the prefix names sits in a
+     * conventional location under the PROJECT ROOT being augmented. Evidence is the file on
+     * disk, not the bean index (config-yaml contributes no annotations). Resolved strictly
+     * under the passed root, never the process CWD: a CWD-relative probe inspected the reactor
+     * root's resources in multi-module builds (the same class of bug as the readAppConfig CWD
+     * lookup). Package-visible so the behavioral suite can pin the resolution semantics without
+     * depending on the surefire working directory.
+     */
+    static boolean configFilePresent(String prefix, java.nio.file.Path projectRoot) {
+        String fileName = prefix.substring("FILE:".length());
+        return java.nio.file.Files.isRegularFile(
+                        projectRoot.resolve(java.nio.file.Path.of("src", "main", "resources", fileName)))
+                || java.nio.file.Files.isRegularFile(
+                        projectRoot.resolve(java.nio.file.Path.of("target", "classes", fileName)));
+    }
+
+    /**
      * Whether the bean index contains any annotation whose type name starts with the given prefix.
-     * Checks a small set of known annotation types per family (cheaper than scanning all annotations).
+     * Checks a small set of known annotation types per family (cheaper than scanning all
+     * annotations). Index-based prefixes only: {@code FILE:} prefixes are evidence-on-disk and
+     * dispatch to {@link #configFilePresent(String, java.nio.file.Path)} in {@link #apply}.
      */
     private static boolean annotationFamilyPresent(IndexView index, String prefix) {
         // For each known prefix, probe a few representative annotation types.
@@ -269,11 +297,10 @@ public final class AnnotationAttribution {
                     || ci.fields().stream().anyMatch(f -> f.type().name().toString().equals("io.quarkus.qute.Template")));
         }
         if (prefix.startsWith("FILE:")) {
-            // Config-file presence rule: the extension that parses the file the app actually ships.
-            // Evidence is the file on disk, not the bean index (config-yaml contributes no annotations).
-            String fileName = prefix.substring("FILE:".length());
-            return java.nio.file.Files.isRegularFile(java.nio.file.Path.of("src", "main", "resources", fileName))
-                    || java.nio.file.Files.isRegularFile(java.nio.file.Path.of("target", "classes", fileName));
+            // Unreachable: apply() dispatches FILE: prefixes to configFilePresent before calling
+            // here (the loud failure guards against a future call path reintroducing the silent
+            // fall-through that left probes dead).
+            throw new IllegalStateException("FILE: prefixes must dispatch to configFilePresent");
         }
         if (prefix.startsWith("REST-SERIALIZER:")) {
             // Serialization-only rule (TASK-21, from the ablation bench): a declared REST-serializer

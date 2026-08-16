@@ -28,11 +28,14 @@ import io.quarkus.maven.dependency.ResolvedDependencyBuilder;
 import org.jboss.jandex.Index;
 import org.jboss.jandex.Indexer;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -74,6 +77,7 @@ class AnnotationAttributionBehaviorTest {
     private static final String OPENAPI = "io.quarkus:quarkus-smallrye-openapi";
     private static final String REST_QUTE = "io.quarkus:quarkus-rest-qute";
     private static final String MONGODB_PANACHE = "io.quarkus:quarkus-mongodb-panache";
+    private static final String CONFIG_YAML = "io.quarkus:quarkus-config-yaml";
     private static final String REACTIVE_PG = "io.quarkus:quarkus-reactive-pg-client";
     private static final String REACTIVE_MYSQL = "io.quarkus:quarkus-reactive-mysql-client";
     private static final String HIBERNATE_REACTIVE = "io.quarkus:quarkus-hibernate-reactive";
@@ -106,6 +110,10 @@ class AnnotationAttributionBehaviorTest {
     private static final String OPERATION_ANN = "org.eclipse.microprofile.openapi.annotations.Operation";
     private static final String CHECKED_TEMPLATE_ANN = "io.quarkus.qute.CheckedTemplate";
     private static final String PANACHE_MONGO_ENTITY = "io.quarkus.mongodb.panache.PanacheMongoEntity";
+
+    /** A project root that never exists (non-FILE tests stay hermetic: the FILE: prefixes are in
+     *  RULES, so apply() probes the filesystem on every call). */
+    private static final Path NOWHERE = Path.of("no-such-project-root");
 
     // --- bytecode fixtures (ASM) -------------------------------------------------------------------
 
@@ -386,7 +394,7 @@ class AnnotationAttributionBehaviorTest {
 
     /** The row for {@code ga} after running apply() over a single-suspect report for it. */
     private static ExtensionReport applied(Index index, String ga) {
-        return rowOf(AnnotationAttribution.apply(report(suspect(ga)), index, modelOf(ga), Set.of()), ga);
+        return rowOf(AnnotationAttribution.apply(report(suspect(ga)), index, modelOf(ga), Set.of(), NOWHERE), ga);
     }
 
     /** Single-suspect shorthand: {@code ga} is declared, suspected, and must flip to used. */
@@ -498,7 +506,7 @@ class AnnotationAttributionBehaviorTest {
         Index idx = index(pathResource("res.J", rawRet(POJO)));
         AnalysisReport out = AnnotationAttribution.apply(
                 report(suspect(QUARKUS_REST), suspect(RESTEASY), suspect(RESTEASY_JACKSON)),
-                idx, modelOf(QUARKUS_REST, RESTEASY, RESTEASY_JACKSON), Set.of());
+                idx, modelOf(QUARKUS_REST, RESTEASY, RESTEASY_JACKSON), Set.of(), NOWHERE);
         assertThat(rowOf(out, QUARKUS_REST).verdict()).isEqualTo(Verdict.USED_BYTECODE);
         assertThat(rowOf(out, RESTEASY).verdict()).isEqualTo(Verdict.USED_BYTECODE);
         assertThat(rowOf(out, RESTEASY_JACKSON).verdict()).isEqualTo(Verdict.USED_BYTECODE);
@@ -510,7 +518,7 @@ class AnnotationAttributionBehaviorTest {
         // row for an extension the model does not declare (empty modelOf here) must stay suspect.
         Index idx = index(pathResource("res.K", rawRet(POJO)));
         AnalysisReport out = AnnotationAttribution.apply(report(suspect(REST_JACKSON)), idx,
-                modelOf(), Set.of());
+                modelOf(), Set.of(), NOWHERE);
         assertThat(rowOf(out, REST_JACKSON).verdict()).isEqualTo(Verdict.SUSPECT);
     }
 
@@ -518,7 +526,7 @@ class AnnotationAttributionBehaviorTest {
     void noAnnotationsNoJoinReturnsReportUnchanged() throws IOException {
         // Identity path: nothing fired, apply() returns the same instance untouched.
         AnalysisReport in = report(suspect(REST_JACKSON));
-        assertThat(AnnotationAttribution.apply(in, STUB_ONLY_INDEX, modelOf(REST_JACKSON), Set.of()))
+        assertThat(AnnotationAttribution.apply(in, STUB_ONLY_INDEX, modelOf(REST_JACKSON), Set.of(), NOWHERE))
                 .isSameAs(in);
     }
 
@@ -552,7 +560,7 @@ class AnnotationAttributionBehaviorTest {
         Index idx = STUB_ONLY_INDEX;
         AnalysisReport out = AnnotationAttribution.apply(
                 report(row(HIBERNATE_REACTIVE_PANACHE, Verdict.USED_BYTECODE), suspect(REACTIVE_PG)),
-                idx, modelOf(REACTIVE_PG), Set.of());
+                idx, modelOf(REACTIVE_PG), Set.of(), NOWHERE);
         assertThat(rowOf(out, REACTIVE_PG).verdict()).isEqualTo(Verdict.USED_BYTECODE);
     }
 
@@ -562,7 +570,7 @@ class AnnotationAttributionBehaviorTest {
         // the reactive client is load-bearing.
         Index idx = STUB_ONLY_INDEX;
         AnalysisReport out = AnnotationAttribution.apply(report(suspect(REACTIVE_PG)),
-                idx, modelOf(REACTIVE_PG), Set.of());
+                idx, modelOf(REACTIVE_PG), Set.of(), NOWHERE);
         assertThat(rowOf(out, REACTIVE_PG).verdict()).isEqualTo(Verdict.SUSPECT);
     }
 
@@ -572,7 +580,7 @@ class AnnotationAttributionBehaviorTest {
         AnalysisReport out = AnnotationAttribution.apply(
                 report(row(HIBERNATE_REACTIVE_PANACHE, Verdict.USED_BYTECODE),
                         suspect(REACTIVE_PG), suspect(REACTIVE_MYSQL)),
-                idx, modelOf(REACTIVE_PG, REACTIVE_MYSQL), Set.of("postgresql"));
+                idx, modelOf(REACTIVE_PG, REACTIVE_MYSQL), Set.of("postgresql"), NOWHERE);
         assertThat(rowOf(out, REACTIVE_PG).verdict()).isEqualTo(Verdict.USED_BYTECODE);
         assertThat(rowOf(out, REACTIVE_MYSQL).verdict()).isEqualTo(Verdict.SUSPECT);
     }
@@ -584,7 +592,7 @@ class AnnotationAttributionBehaviorTest {
         AnalysisReport out = AnnotationAttribution.apply(
                 report(row(HIBERNATE_REACTIVE_PANACHE, Verdict.USED_BYTECODE),
                         suspect(REACTIVE_PG), suspect(REACTIVE_MYSQL)),
-                idx, modelOf(REACTIVE_PG, REACTIVE_MYSQL), Set.of());
+                idx, modelOf(REACTIVE_PG, REACTIVE_MYSQL), Set.of(), NOWHERE);
         assertThat(rowOf(out, REACTIVE_PG).verdict()).isEqualTo(Verdict.SUSPECT);
         assertThat(rowOf(out, REACTIVE_MYSQL).verdict()).isEqualTo(Verdict.SUSPECT);
     }
@@ -600,7 +608,7 @@ class AnnotationAttributionBehaviorTest {
                         List.of("io.quarkus:quarkus-hibernate-validator"))),
                 List.of("io.lib.Marker"));
         AnalysisReport out = AnnotationAttribution.apply(report(suspectWithHints), idx,
-                modelOf(REST_JACKSON), Set.of());
+                modelOf(REST_JACKSON), Set.of(), NOWHERE);
         ExtensionReport flipped = out.dependencies().get(0);
         assertThat(flipped.verdict()).isEqualTo(Verdict.USED_BYTECODE);
         // Shared-jar hints are suspect-row-only evidence and must not survive the flip.
@@ -616,7 +624,7 @@ class AnnotationAttributionBehaviorTest {
         Index idx = index(pathResource("res.P", rawRet(POJO)));
         AnalysisReport out = AnnotationAttribution.apply(
                 report(suspect(REST_JACKSON), suspect(HIBERNATE_VALIDATOR)),
-                idx, modelOf(REST_JACKSON, HIBERNATE_VALIDATOR), Set.of());
+                idx, modelOf(REST_JACKSON, HIBERNATE_VALIDATOR), Set.of(), NOWHERE);
         // Exactly one row flips: the serializer (via REST-SERIALIZER). The validator stays
         // suspect (the index has no validation annotation), and the recomputed summaries must
         // reflect that split.
@@ -636,7 +644,7 @@ class AnnotationAttributionBehaviorTest {
                 List.of("jakarta.persistence.jdbc.url"), Set.of(), List.of(), false, List.of(),
                 "config signal", null, null, List.of(), List.of());
         AnalysisReport out = AnnotationAttribution.apply(report(alreadyUsed), idx,
-                modelOf(RESTEASY_JACKSON), Set.of());
+                modelOf(RESTEASY_JACKSON), Set.of(), NOWHERE);
         ExtensionReport untouched = rowOf(out, RESTEASY_JACKSON);
         assertThat(untouched.verdict()).isEqualTo(Verdict.USED_CONFIG);
         assertThat(untouched.note()).isEqualTo("config signal");
@@ -650,7 +658,7 @@ class AnnotationAttributionBehaviorTest {
         Index idx = index(pathResource("res.R", rawRet(POJO)));
         AnalysisReport out = AnnotationAttribution.apply(
                 report(suspect(REST_JACKSON), plainJarSuspect("com.acme:plain-lib")),
-                idx, modelOf(REST_JACKSON), Set.of());
+                idx, modelOf(REST_JACKSON), Set.of(), NOWHERE);
         assertThat(rowOf(out, "com.acme:plain-lib").verdict()).isEqualTo(Verdict.SUSPECT);
         assertThat(out.extensions().usedBytecode()).isEqualTo(1);
         assertThat(out.plainJars().suspect()).isEqualTo(1);
@@ -775,7 +783,7 @@ class AnnotationAttributionBehaviorTest {
         AnalysisReport out = AnnotationAttribution.apply(
                 report(row(HIBERNATE_REACTIVE_PANACHE, Verdict.USED_BYTECODE),
                         row(REACTIVE_MYSQL, Verdict.USED_BYTECODE), suspect(REACTIVE_PG)),
-                idx, modelOf(REACTIVE_PG, REACTIVE_MYSQL), Set.of());
+                idx, modelOf(REACTIVE_PG, REACTIVE_MYSQL), Set.of(), NOWHERE);
         assertThat(rowOf(out, REACTIVE_PG).verdict()).isEqualTo(Verdict.SUSPECT);
     }
 
@@ -785,7 +793,7 @@ class AnnotationAttributionBehaviorTest {
         AnalysisReport out = AnnotationAttribution.apply(
                 report(row(HIBERNATE_REACTIVE_PANACHE, Verdict.USED_BYTECODE),
                         suspect(REACTIVE_PG), suspect(REACTIVE_MYSQL)),
-                idx, modelOf(REACTIVE_PG, REACTIVE_MYSQL), Set.of("PostgreSQL"));
+                idx, modelOf(REACTIVE_PG, REACTIVE_MYSQL), Set.of("PostgreSQL"), NOWHERE);
         assertThat(rowOf(out, REACTIVE_PG).verdict()).isEqualTo(Verdict.USED_BYTECODE);
         assertThat(rowOf(out, REACTIVE_MYSQL).verdict()).isEqualTo(Verdict.SUSPECT);
     }
@@ -795,7 +803,70 @@ class AnnotationAttributionBehaviorTest {
         Index idx = index();
         AnalysisReport out = AnnotationAttribution.apply(
                 report(row(HIBERNATE_REACTIVE, Verdict.USED_BYTECODE), suspect(REACTIVE_PG)),
-                idx, modelOf(REACTIVE_PG), Set.of());
+                idx, modelOf(REACTIVE_PG), Set.of(), NOWHERE);
         assertThat(rowOf(out, REACTIVE_PG).verdict()).isEqualTo(Verdict.USED_BYTECODE);
+    }
+
+    // --- FILE: rules (TASK-24: resolved under the passed project root, not the CWD) ---------------
+
+    @Test
+    void yamlInProjectRootResourcesCreditsConfigYaml(@TempDir Path moduleRoot) throws IOException {
+        Files.createDirectories(moduleRoot.resolve(Path.of("src", "main", "resources")));
+        Files.writeString(moduleRoot.resolve(Path.of("src", "main", "resources", "application.yml")), "quarkus: {}\n");
+        AnalysisReport out = AnnotationAttribution.apply(report(suspect(CONFIG_YAML)),
+                STUB_ONLY_INDEX, modelOf(CONFIG_YAML), Set.of(), moduleRoot);
+        assertThat(rowOf(out, CONFIG_YAML).verdict()).isEqualTo(Verdict.USED_BYTECODE);
+    }
+
+    @Test
+    void yamlInTargetClassesAlsoCreditsConfigYaml(@TempDir Path moduleRoot) throws IOException {
+        Files.createDirectories(moduleRoot.resolve(Path.of("target", "classes")));
+        Files.writeString(moduleRoot.resolve(Path.of("target", "classes", "application.yaml")), "quarkus: {}\n");
+        AnalysisReport out = AnnotationAttribution.apply(report(suspect(CONFIG_YAML)),
+                STUB_ONLY_INDEX, modelOf(CONFIG_YAML), Set.of(), moduleRoot);
+        assertThat(rowOf(out, CONFIG_YAML).verdict()).isEqualTo(Verdict.USED_BYTECODE);
+    }
+
+    @Test
+    void fileRuleResolvesOnlyUnderThePassedRoot(@TempDir Path reactorRoot, @TempDir Path otherModule)
+            throws IOException {
+        // The yml sits under another module's root (the reactor root, in the TASK-24 scenario);
+        // the module being augmented is otherModule, and its verdict must not leak in from the
+        // other root. (The strict no-CWD-union semantics are pinned directly by the
+        // configFilePresent unit tests below, which do not depend on the surefire CWD.)
+        Files.createDirectories(reactorRoot.resolve(Path.of("src", "main", "resources")));
+        Files.writeString(reactorRoot.resolve(Path.of("src", "main", "resources", "application.yml")),
+                "quarkus: {}\n");
+        AnalysisReport out = AnnotationAttribution.apply(report(suspect(CONFIG_YAML)),
+                STUB_ONLY_INDEX, modelOf(CONFIG_YAML), Set.of(), otherModule);
+        assertThat(rowOf(out, CONFIG_YAML).verdict()).isEqualTo(Verdict.SUSPECT);
+    }
+
+    @Test
+    void noYamlAnywhereLeavesConfigYamlSuspect(@TempDir Path moduleRoot) throws IOException {
+        AnalysisReport out = AnnotationAttribution.apply(report(suspect(CONFIG_YAML)),
+                STUB_ONLY_INDEX, modelOf(CONFIG_YAML), Set.of(), moduleRoot);
+        assertThat(rowOf(out, CONFIG_YAML).verdict()).isEqualTo(Verdict.SUSPECT);
+    }
+
+    @Test
+    void configFilePresentResolvesThePassedRootOnly(@TempDir Path withYml, @TempDir Path without)
+            throws IOException {
+        // Direct pins of the probe semantics (TASK-24): resolution happens strictly under the
+        // passed root, in the two conventional locations, for both file spellings.
+        Files.createDirectories(withYml.resolve(Path.of("src", "main", "resources")));
+        Files.writeString(withYml.resolve(Path.of("src", "main", "resources", "application.yml")), "q: v\n");
+        assertThat(AnnotationAttribution.configFilePresent("FILE:application.yml", withYml)).isTrue();
+        assertThat(AnnotationAttribution.configFilePresent("FILE:application.yml", without)).isFalse();
+        assertThat(AnnotationAttribution.configFilePresent("FILE:application.yaml", withYml)).isFalse();
+        assertThat(AnnotationAttribution.configFilePresent("FILE:application.yml", NOWHERE)).isFalse();
+    }
+
+    @Test
+    void configFilePresentAlsoFindsTargetClassesCopy(@TempDir Path moduleRoot) throws IOException {
+        Files.createDirectories(moduleRoot.resolve(Path.of("target", "classes")));
+        Files.writeString(moduleRoot.resolve(Path.of("target", "classes", "application.yaml")), "q: v\n");
+        assertThat(AnnotationAttribution.configFilePresent("FILE:application.yaml", moduleRoot)).isTrue();
+        assertThat(AnnotationAttribution.configFilePresent("FILE:application.yml", moduleRoot)).isFalse();
     }
 }

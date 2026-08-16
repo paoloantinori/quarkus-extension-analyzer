@@ -746,3 +746,29 @@ testable without pinning the bug).
 
 Verification: mvn clean install BUILD SUCCESS, 143 tests (95 core + 48
 deployment, of which 45 behavioral).
+
+### Work unit 20, 2026-08-16, TASK-24: FILE: rules resolve under the augmented module's root
+
+apply() gains a Path projectRoot parameter; the FILE:application.yml/.yaml
+rules now probe src/main/resources and target/classes under the module being
+augmented (derived from the ApplicationModel in AnalyzerBuildStep), not the
+process CWD. Path.of("") preserves the legacy CWD-relative behavior for
+callers that cannot derive a root. The probe lives in a package-visible
+configFilePresent(prefix, root), dispatched before annotationFamilyPresent
+(whose contract stays index-only; a loud guard replaces the old silent
+fall-through for FILE: prefixes reaching it).
+
+DoD review (3 agents). The correctness reviewer empirically demonstrated
+that the first draft's "CWD regression pin" test was vacuous: reverting the
+production code to CWD probing left it passing (surefire's CWD has no yml),
+so an implementation probing root-OR-CWD would pass the entire suite while
+still committing the wrong-module credit TASK-24 was filed for. Fixed by
+unit-pinning configFilePresent directly (passed-root-only, both locations,
+both spellings) and rewording the end-to-end test to claim only what it
+pins. Also applied: redundant call-site comment deleted, the nested-ternary
+root derivation collapsed into firstExistingProjectRoot (single definition
+of the fallback contract). Out-of-scope reuse findings (duplicated
+Maven-layout path derivations across the shell) filed as TASK-26.
+
+Verification: 51 behavioral + 3 structural tests green; full reactor
+mvn clean install BUILD SUCCESS (95 core + 54 deployment).
