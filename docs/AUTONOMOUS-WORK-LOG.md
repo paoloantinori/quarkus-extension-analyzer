@@ -953,3 +953,51 @@ credited. The mojo now matches the extension form's precision on these apps.
 
 Verification: full reactor BUILD SUCCESS, 154 tests (149 core incl. the moved
 52-test behavioral suite + 5 deployment).
+
+### Work unit 26, 2026-08-17, TASK-28 DoD review round: pins and side effects
+
+Three review agents (adversarial correctness with jar disassembly,
+mutation-minded test quality, docs/API). All five correctness checks PASS
+(engine-move fidelity verified by normalized diff against the pre-move
+source: no lost rule or branch, one comment line restored; shade coverage
+verified against the jar's actual io.quarkus package list; main-classes
+alignment verified shape-matched to the extension form on index scope,
+FILE: probe, and db-kind scope; adapter semantics identical; empty-index
+path safe).
+
+IMPORTANT SIDE EFFECT the review surfaced: the old bare relocation pattern
+had been mangling a SECOND literal since TASK-20 -
+ConfigRootProbe's "io.quarkus.runtime.annotations.ConfigRoot" DotName - so
+the mojo form's source-D @ConfigRoot fallback (config roots declared with
+the legacy annotation) has been silently dead in every mojo report since
+TASK-20. The fix revives it: mojo used-config attribution may grow on apps
+using legacy @ConfigRoot declarations; old vs new mojo reports are not
+directly comparable across this change (the extension form was never
+affected). Verified intact in the post-fix jar.
+
+Pins added (test-quality review):
+- ShadedJarRelocationIT (failsafe, runs after shade): reads the BUILT jar
+  and asserts the engine's domain literals survive byte-for-byte AND no
+  io/quarkus/ class escapes relocation. Mutation-verified: reverting to the
+  bare pattern fails the IT with "to contain: io.quarkus:quarkus-rest-jackson".
+- IsolatedAnalyzerRunnerTest (3 tests): the mojo-side derivation pinned for
+  the first time - the declared-GA extraction incl. the isDirect filter, the
+  null-index fallback (join fires without compiled classes), and the
+  project-basedir forwarding the FILE: rules depend on.
+- Adapter end-to-end test: the 5-arg delegation incl. the two Set<String>
+  params (a transposition mutation compiles clean; only a behavioral pin
+  catches it).
+- BytecodeUsageTest: the indexClasses null contract pinned.
+- The vestigial extension-deployment structural test deleted (zero project
+  code exercised; stale cross-references; engine coverage lives in core's
+  52-test suite, adapter coverage in the adapter tests).
+
+Docs: value-rules.txt reverse sync pointer corrected to the engine's new
+home; README/AnalyzerBuildStep/EXTENSION-USAGE "the mojo cannot" claims
+updated to the shared-engine reality; bench table refreshed with pre/post
+TASK-28 mojo numbers; AnalyzerBuildStep now calls the shared
+AnnotationConsumerRules.dbKindValues (the "shared by both shells" claim is
+true again); shaded pom comments de-duplicated and made accurate.
+
+Verification: full reactor BUILD SUCCESS, 158 tests (150 core + 3 runner +
+2 shaded-relocation IT + 3 adapter).

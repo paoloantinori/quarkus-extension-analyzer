@@ -102,7 +102,7 @@ public final class IsolatedAnalyzerRunner {
         } finally {
             executor.shutdown();
         }
-        report = applyAnnotationConsumers(model, project, classesDirs, appConfig, report);
+        report = applyAnnotationConsumers(model, project, appConfig, report);
         if (fragmentsDir != null) {
             io.github.paoloantinori.qea.plugin.report.IgnoreFragments
                     .writeFragments(report.ignoreRecommendations(), fragmentsDir);
@@ -117,15 +117,20 @@ public final class IsolatedAnalyzerRunner {
     /**
      * TASK-28: the annotation-consumer pass in the mojo form. The engine is shared with the
      * extension form (core's AnnotationConsumerRules); this derives the mojo-side inputs: the
-     * app index from the same bytecode-scan machinery (null when the project has no compiled
-     * classes yet, in which case only the non-index rules can fire), the declared-extension set
-     * from the resolved model, the db-kind values from the app config, and the project root from
-     * the MavenProject (always the module being analyzed, unlike the process CWD).
+     * app index built over the module's MAIN classes only (like the extension form's bean index,
+     * test-only stubs excluded in both: a test-only @Path stub must not credit a serializer the
+     * main code never uses, or the two forms would disagree; note the bytecode signal keeps its
+     * wider main+test scope, as it always had), the declared-extension set from the
+     * resolved model, the db-kind values from the app config, and the project root from the
+     * MavenProject (always the module being analyzed, unlike the process CWD).
      */
-    private static AnalysisReport applyAnnotationConsumers(ApplicationModel model, MavenProject project,
-            List<Path> classesDirs, AppConfigReader appConfig, AnalysisReport report) throws IOException {
+    static AnalysisReport applyAnnotationConsumers(ApplicationModel model, MavenProject project,
+            AppConfigReader appConfig, AnalysisReport report) throws IOException {
         org.jboss.jandex.Index appIndex = io.github.paoloantinori.qea.plugin.bytecode.BytecodeUsage
-                .indexClasses(classesDirs);
+                .indexClasses(List.of(Paths.get(project.getBuild().getOutputDirectory())));
+        // Mirrors the extension adapter's AnnotationAttribution.collectDeclaredExtensionGas
+        // (the derivation cannot live in core: ResolvedDependency is a bootstrap type); both
+        // copies are pinned by tests (AnnotationAttributionAdapterTest, this module's runner test).
         java.util.Set<String> declaredExtensionGas = new java.util.TreeSet<>();
         for (io.quarkus.maven.dependency.ResolvedDependency d : model.getDependencies()) {
             if (d.isRuntimeExtensionArtifact() && d.isDirect()) {

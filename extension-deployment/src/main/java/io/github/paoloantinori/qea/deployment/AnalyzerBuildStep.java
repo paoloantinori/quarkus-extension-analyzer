@@ -50,10 +50,9 @@ import java.util.concurrent.Executors;
  * {@code quarkus.extension-analyzer.fail-on-suspect}.
  *
  * <p>Why this form exists (vs the standalone mojo): inside augmentation, the {@link ApplicationModel}
- * is authoritative and free, eliminating the TASK-9 reactor-resolution machinery; and ArC's bean
- * index carries the producer/consumer wiring that resolves the annotation-consumer false positives
- * (hibernate-validator via @NotNull, scheduler via @Scheduled) the mojo cannot resolve without a
- * curated invariant-weakening table.
+ * is authoritative and free, eliminating the TASK-9 reactor-resolution machinery. Since TASK-28
+ * both forms run the same core rules engine; the extension form's remaining edge is the more
+ * authoritative index (ArC's bean-archive view of the app) and zero setup.
  */
 public final class AnalyzerBuildStep {
 
@@ -122,19 +121,12 @@ public final class AnalyzerBuildStep {
         AnalysisReport report = analyzer.analyze(model, classesDirs, appConfig, true);
         executor.shutdown();
 
-        // --- Annotation-consumer resolution (the extension form's unique value) ---
-        // The bean index (ArC's Jandex index of the app) knows which annotations the app uses.
-        // A small curated mapping credits the extension that processes each known annotation family,
-        // resolving the annotation-consumer false positives the mojo cannot (hibernate-validator
-        // via @NotNull, scheduler via @Scheduled, smallrye-jwt via @Inject JsonWebToken). The
+        // --- Annotation-consumer resolution (shared core engine; TASK-28) ---
+        // The bean index (ArC's Jandex index of the app) knows which annotations the app uses;
+        // the shared core engine credits the extension that processes each known family. The
         // db-kind values from the app config feed the TASK-23 multi-reactive-client disambiguation.
-        Set<String> dbKindValues = new java.util.TreeSet<>();
-        for (var e : appConfig.valuesByKey().entrySet()) {
-            if (e.getKey().endsWith(".db-kind")) {
-                dbKindValues.addAll(e.getValue());
-            }
-        }
-        report = AnnotationAttribution.apply(report, beanArchiveIndex.getIndex(), model, dbKindValues,
+        report = AnnotationAttribution.apply(report, beanArchiveIndex.getIndex(), model,
+                io.github.paoloantinori.qea.plugin.annotation.AnnotationConsumerRules.dbKindValues(appConfig),
                 projectRoot);
 
         // Emit the report via JBoss Logging (the canonical Quarkus build-time log channel,

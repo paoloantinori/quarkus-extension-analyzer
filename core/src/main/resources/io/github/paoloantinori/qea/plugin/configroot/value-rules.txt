@@ -37,8 +37,8 @@ quarkus.datasource.{name}.db-kind|postgresql|io.quarkus:quarkus-jdbc-postgresql
 # against the Quarkus BOM (3.33.2.1, the root pom's quarkus.version): reactive-{pg,mysql,mssql,db2,oracle}-client. There is NO
 # mariadb reactive artifact (quarkusio/quarkus#55695 is an open request): MariaDB apps use the
 # mysql client with db-kind=mariadb, so both kinds map to io.quarkus:quarkus-reactive-mysql-client.
-# Keep in sync with AnnotationAttribution.reactiveFamiliesOf in extension-deployment (same domain
-# fact, other execution form).
+# Keep in sync with AnnotationConsumerRules.reactiveFamiliesOf (same module,
+# other signal: the value rule vs the reactive-driver join).
 quarkus.datasource.{name}.db-kind|postgresql|io.quarkus:quarkus-reactive-pg-client
 quarkus.datasource.{name}.db-kind|mysql|io.quarkus:quarkus-reactive-mysql-client
 quarkus.datasource.{name}.db-kind|mariadb|io.quarkus:quarkus-reactive-mysql-client

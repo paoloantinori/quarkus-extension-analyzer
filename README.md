@@ -5,7 +5,7 @@ Dependency-usage analysis that understands Quarkus.
 **Status:** M1 (spike), M2 (the `analyze` mojo), M3 (ignore-list interop), and
 M4 (Quarkiverse evaluation) are done. M5 (the Quarkus build-time extension form)
 is a working prototype: it shares a common core library with the mojo and
-resolves annotation-consumer false positives the standalone mojo cannot, by
+resolves annotation-consumer false positives in both forms (the engine lives in core; TASK-28), by
 reading ArC's bean index during augmentation. Both forms are validated on two
 benches (Apicurio Registry and Quarkus super-heroes); see
 [docs/M2-VALIDATION.md](docs/M2-VALIDATION.md), [docs/SECOND-BENCH.md](docs/SECOND-BENCH.md),

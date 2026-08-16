@@ -69,10 +69,36 @@
       <version>${maven.version}</version>
       <scope>provided</scope>
     </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>5.10.5</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <version>3.27.7</version>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>
     <plugins>
+      <!-- The relocation pin (below) must run AFTER shade (package phase), so it is an IT. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-failsafe-plugin</artifactId>
+        <version>3.5.6</version>
+        <executions>
+          <execution>
+            <goals>
+              <goal>integration-test</goal>
+              <goal>verify</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-shade-plugin</artifactId>
@@ -85,8 +111,6 @@
               <createDependencyReducedPom>true</createDependencyReducedPom>
               <!-- No filter: core + all transitives land in the shaded jar. -->
               <relocations>
-                <!-- The whole point of TASK-20: our embedded Quarkus bootstrap must be invisible
-                     to the project realm's own (possibly different) Quarkus classes. -->
                 <!-- The whole point of TASK-20: our embedded Quarkus bootstrap must be invisible
                      to the project realm's own (possibly different) Quarkus classes. The patterns
                      are PACKAGE-specific with a trailing dot on purpose: a bare "io.quarkus"
@@ -124,8 +148,9 @@
                   <pattern>io.quarkus.util.</pattern>
                   <shadedPattern>io.github.paoloantinori.qea.internal.quarkus.util.</shadedPattern>
                 </relocation>
-                <!-- Smallrye/jandex transitives are not typically present in project realms, but
-                     relocating them too keeps the shaded jar hermetic. -->
+                <!-- Jandex (a core dependency) is relocated for hermeticity; the smallrye-common
+                     transitives of the bootstrap resolver are NOT relocated (a pre-existing TASK-20
+                     tradeoff: they are not typically present in project realms). -->
                 <relocation>
                   <pattern>org.jboss.jandex</pattern>
                   <shadedPattern>io.github.paoloantinori.qea.internal.jandex</shadedPattern>

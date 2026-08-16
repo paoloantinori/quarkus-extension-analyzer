@@ -135,6 +135,14 @@ class BytecodeUsageTest {
         assertThat(referenced).contains("com.example.Payload");
     }
 
+    @Test
+    void indexClassesIsNullWhenNoCompiledClassesExist(@TempDir Path emptyDir) throws IOException {
+        // The null contract the mojo's annotation-consumer pass depends on (its empty-index
+        // fallback). An index built anyway would change nothing, but the contract should not
+        // silently flip to an empty Index (callers distinguish "nothing to scan").
+        assertThat(BytecodeUsage.indexClasses(List.of(emptyDir))).isNull();
+    }
+
     private static Path writeSource(Path srcRoot, String qualifiedName, String source) throws IOException {
         Path f = srcRoot.resolve(qualifiedName.replace('.', '/') + ".java");
         Files.createDirectories(f.getParent());

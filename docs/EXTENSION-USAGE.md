@@ -3,23 +3,23 @@
 The extension form runs the analyzer inside Quarkus augmentation (at build
 time), where it has access to ArC's authoritative bean index. Since TASK-28
 the annotation-consumer rules engine lives in core and BOTH forms run it (the
-mojo feeds it the bytecode-scan index); the extension form's index remains the
-more authoritative one (ArC's bean archive view of the app).
+mojo feeds it an index over the module's compiled main classes); the extension
+form's index remains the more authoritative one (ArC's bean archive view).
 
 ## When to use the extension vs the mojo
 
 | | Mojo (standalone) | Extension (in-build) |
 |---|---|---|
 | Use case | CI sweep over any built app, no pom change | Per-app, automatic |
-| Annotation-consumer FP | **Resolved** (TASK-28: bytecode-scan index) | **Resolved** (ArC bean index) |
+| Annotation-consumer FP | **Resolved** (TASK-28: main-classes index) | **Resolved** (ArC bean index) |
 | App pom change needed | No (point and run) | Yes (add the extension as a dependency) |
 | Best for | Portfolio/central CI hygiene | Per-app build integration |
 
 Both share the same `core` library, so the three-signal classification AND the
 annotation-consumer pass are identical (TASK-28 moved the rules engine to core:
 one engine, two thin shells). The only remaining difference is the index each
-form feeds it: the extension passes ArC's bean index, the mojo passes the
-Jandex index built for the bytecode signal.
+form feeds it: the extension passes ArC's bean index, the mojo passes a
+Jandex index over the module's compiled main classes.
 
 ## How to use the extension
 
@@ -43,10 +43,11 @@ goal invocation is needed.
 |---|---|---|
 | `quarkus.extension-analyzer.fail-on-suspect` | `false` | When `true`, fails the build if any directly-declared dependency is classified `suspect`. |
 
-### What the extension resolves that the mojo cannot
+### The annotation-consumer pass (shared engine)
 
-The extension's `AnnotationAttribution` post-pass checks ArC's bean index for
-known annotation families and credits the extension that processes each:
+The shared core engine (`AnnotationConsumerRules`; the extension's
+`AnnotationAttribution` is a thin adapter) checks the index for known
+annotation families and credits the extension that processes each:
 
 | Annotation family | Credited extension |
 |---|---|
@@ -70,10 +71,14 @@ manufactures a verdict for an undeclared extension).
 
 ### Bench results
 
-| Bench | Mojo suspects | Extension suspects | Reduction |
+| Bench | Mojo suspects (pre-TASK-28) | Mojo suspects (TASK-28) | Extension suspects |
 |---|---|---|---|
-| Apicurio `app` (~24 extensions) | 5 | **1** | -80% |
-| rest-fights (~23 extensions) | 3 | **3** (2 are runtime-only: info, otel) | stable |
+| rest-heroes | 5 | **2** (runtime-only pair) | 2 (+ the analyzer row) |
+| rest-fights | 3 | **2** (runtime-only pair) | 3 (incl. the analyzer row) |
+| resteasy-client-quickstart | n/a | **0** | 1 |
+
+Pre-TASK-28 numbers (Apicurio `app`: mojo 5 vs extension 1, -80%) predate both
+the shared engine and the damaged-workspace re-baseline (see the caveat below).
 
 ## Limitations
 
@@ -84,7 +89,7 @@ manufactures a verdict for an undeclared extension).
 - **The extension itself appears as a suspect** in the report (correct: an analyzer
   extension has no app-side usage signal). Filter it out mentally.
 - The annotation-consumer rules are a **curated table** (14 distinct families,
-  17 entries; see `AnnotationAttribution.RULES`). Extensions
+  17 entries; see `AnnotationConsumerRules.RULES` in core). Extensions
   not in the table fall through to the three core signals. The table is
   extensible; submit additions validated against real bench data.
 - **Bench caveat (2026-08-17):** the old super-heroes workspace under

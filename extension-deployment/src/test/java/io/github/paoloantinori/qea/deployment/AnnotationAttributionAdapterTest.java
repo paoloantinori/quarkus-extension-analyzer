@@ -23,7 +23,9 @@ import io.quarkus.maven.dependency.ArtifactKey;
 import io.quarkus.maven.dependency.ResolvedDependency;
 import io.quarkus.maven.dependency.ResolvedDependencyBuilder;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -53,6 +55,40 @@ class AnnotationAttributionAdapterTest {
     @Test
     void emptyModelYieldsEmptyDeclaredGas() {
         assertThat(AnnotationAttribution.collectDeclaredExtensionGas(modelOf())).isEmpty();
+    }
+
+    @Test
+    void applyDelegatesEndToEndWithCorrectArgumentOrder(@TempDir java.nio.file.Path withYml)
+            throws IOException {
+        // End-to-end through the adapter (the delegation passes five positional args, two of them
+        // Set<String>: a transposed-argument mutation compiles clean, so only a behavioral pin
+        // catches it). The FILE: path needs no compiled fixtures: an empty index plus a yml under
+        // the passed root must credit config-yaml; an empty root must not.
+        java.nio.file.Files.createDirectories(withYml.resolve(java.nio.file.Path.of("src", "main", "resources")));
+        java.nio.file.Files.writeString(
+                withYml.resolve(java.nio.file.Path.of("src", "main", "resources", "application.yml")), "q: v\n");
+        org.jboss.jandex.IndexView emptyIndex = new org.jboss.jandex.Indexer().complete();
+        ApplicationModel model = modelOf(dep("io.quarkus", "quarkus-config-yaml", true, true));
+
+        io.github.paoloantinori.qea.plugin.report.AnalysisReport report =
+                new io.github.paoloantinori.qea.plugin.report.AnalysisReport("test:app:1", "now",
+                        List.of(new io.github.paoloantinori.qea.plugin.report.ExtensionReport(
+                                "io.quarkus:quarkus-config-yaml", true,
+                                io.github.paoloantinori.qea.plugin.report.Verdict.SUSPECT, false, Set.of(),
+                                List.of(), Set.of(), List.of(), false, List.of(), null, null, null,
+                                List.of(), List.of())),
+                        List.of(), null, null, null);
+
+        var credited = AnnotationAttribution.apply(report, emptyIndex, model, Set.of("some-db-kind"),
+                withYml);
+        var notCredited = AnnotationAttribution.apply(report, emptyIndex, model, Set.of(),
+                java.nio.file.Path.of("no-such-root"));
+
+        assertThat(credited.dependencies().get(0).verdict())
+                .isEqualTo(io.github.paoloantinori.qea.plugin.report.Verdict.USED_BYTECODE);
+        assertThat(credited.dependencies().get(0).note()).contains("FILE:application.yml");
+        assertThat(notCredited.dependencies().get(0).verdict())
+                .isEqualTo(io.github.paoloantinori.qea.plugin.report.Verdict.SUSPECT);
     }
 
     /** dep(g,a, runtimeExtension, direct). */

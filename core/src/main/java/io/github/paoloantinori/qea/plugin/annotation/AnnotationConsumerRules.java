@@ -492,6 +492,7 @@ public final class AnnotationConsumerRules {
         List<ExtensionReport> reactiveSuspects = reactiveDeclared.stream()
                 .filter(r -> r.verdict() == Verdict.SUSPECT)
                 .toList();
+        // Single-DECLARED shortcut (not single-suspect): when the app declares exactly one reactive
         // client total, that one is necessarily the driver. When several are declared, a single
         // remaining suspect is the LEFTOVER after its siblings were credited elsewhere - crediting it
         // would be wrong (two clients + db-kind=postgresql leaves mysql as the leftover, and mysql
