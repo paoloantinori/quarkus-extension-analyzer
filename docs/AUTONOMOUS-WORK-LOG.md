@@ -602,3 +602,42 @@ FINDINGS AND OUTCOMES:
   ownKeys both live in AppConfigReader's profile-stripped space; removeAll
   string-forms match); seed-loop and classifyExtension agree directionally;
   no aliasing (fresh ArrayList per invocation).
+
+### Work unit 17, 2026-08-16, True skeptic review of AnnotationAttribution: REFUTED and fixed
+
+The skeptic agent (Opus, refutation-first) ran against the compiled code via
+reflection with synthetic Jandex indexes covering 9 resource shapes. VERDICT:
+REFUTED, with empirically-proven findings that no in-context pass had caught.
+
+FIXED in this unit (all verified by re-running the suite + rest-fights):
+1. Phantom FQCNs in NON_SERIALIZED_RETURNS (major): io.quarkus.rest.runtime.
+   RestResponse, io.quarkus.resteasy.runtime.ResteasyResponse, and
+   org.jboss.resteasy.reactive.server.SseInOutEvent DO NOT EXIST in any jar.
+   The real type is org.jboss.resteasy.reactive.RestResponse. Consequence:
+   RestResponse<String> endpoints over-credited the serializer. Fixed by
+   replacing the phantom entries with the verified real FQCN.
+2. Missing generic unwrapping (major): Uni<Void>/Uni<Response> collapsed to
+   raw "io.smallrye.mutiny.Uni" (Jandex ParameterizedType does not override
+   name()), not in the exclusion set → over-credit. Fixed by unwrapping one
+   level of Uni/CompletionStage/Optional and recursing on the type argument.
+3. Interface resources missed (major, false negative): method-level @Path on
+   interfaces (a real Quarkus resource shape per bytecode analysis of
+   ResteasyReactiveScanner) was skipped by the kind()==CLASS filter. Fixed by
+   adding the METHOD-kind branch via declaringClass(), matching what Quarkus's
+   own scanner does.
+4. resteasy-client-jackson credited from server @Path (minor): the server
+   serializer and the client serializer have NO overlapping capability, so
+   they coexist in buildable apps; the client was being credited by evidence
+   it never exercised. Fixed: client-jackson now credits from
+   @RegisterRestClient instead.
+5. Wrong @Valid FQCN probe (nit): jakarta.validation.constraints.Valid never
+   matched (the real type is jakarta.validation.Valid). Fixed.
+6. Dead 3-arg apply overload removed; dead db-kind disjunct removed;
+   flipSuspects contract violations fixed (sharedReferencedJars cleared on
+   flipped rows, evidence note no longer appended to vocabularyEvidence).
+
+Documented-not-fixed: FILE: rule CWD-relativity (finding 4 of the skeptic,
+same root cause as the readAppConfig CWD bug; fix requires threading
+projectRoot through apply(), deferred as TASK-24).
+
+Regression: 95+3 tests green; rest-fights baseline unchanged (7/11/2/3).

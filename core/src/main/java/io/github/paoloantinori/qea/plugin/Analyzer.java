@@ -698,8 +698,7 @@ public final class Analyzer {
             ValueRules.Suppression suppression, List<String> vocabularyEvidence) {
         String gaKey = ga(d);
 
-        List<String> ownKeysUnfiltered = keysWonByOwner.getOrDefault(gaKey, List.of());
-        List<String> ownKeys = ownKeysUnfiltered;
+        List<String> ownKeys = keysWonByOwner.getOrDefault(gaKey, List.of());
         List<String> inheritedKeys = inheritedKeysByGa.get(gaKey);
         // CapabilityJoin only records GAs newly added on top of the initially-used seed set, so a hit
         // here already implies this extension was not used by config or bytecode.

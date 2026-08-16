@@ -60,7 +60,11 @@ public final class AnnotationAttribution {
             new AnnotationRule("io.quarkus.scheduler.Scheduled", "io.quarkus:quarkus-scheduler"),
             new AnnotationRule("org.eclipse.microprofile.jwt.JsonWebToken", "io.quarkus:quarkus-smallrye-jwt"),
             new AnnotationRule("jakarta.ws.rs", "io.quarkus:quarkus-resteasy-jackson"),
-            new AnnotationRule("jakarta.ws.rs", "io.quarkus:quarkus-resteasy-client-jackson"),
+            // Client serializer credited by @RegisterRestClient, not server @Path (skeptic finding 5:
+            // resteasy-jackson and resteasy-client-jackson have NO overlapping capability, so they
+            // coexist in a buildable app; crediting the client from server @Path was wrong).
+            new AnnotationRule("org.eclipse.microprofile.restclient.inject.RegisterRestClient",
+                    "io.quarkus:quarkus-resteasy-client-jackson"),
             // The modern Quarkus REST artifact (formerly resteasy-reactive) and the legacy plain
             // resteasy: whichever is the declared suspect gets credited by the same @Path evidence.
             new AnnotationRule("jakarta.ws.rs", "io.quarkus:quarkus-rest"),
@@ -90,13 +94,6 @@ public final class AnnotationAttribution {
      * @param report the core Analyzer's report (may contain suspect annotation-consumer extensions)
      * @param beanIndex ArC's Jandex index of the app (authoritative: knows which annotations are used)
      * @param model the resolved ApplicationModel (to check the target GA is a declared extension)
-     * @return a new report with annotation-consumer suspects resolved where the bean index confirms use
-     */
-    public static AnalysisReport apply(AnalysisReport report, IndexView beanIndex, ApplicationModel model) {
-        return apply(report, beanIndex, model, Set.of());
-    }
-
-    /**
      * @param dbKindValues the {@code quarkus.datasource[.<name>].db-kind} values present in the app
      *                    config (any profile), used by the TASK-23 disambiguation when multiple
      *                    reactive clients are declared: the client matching the configured kind is
@@ -155,13 +152,15 @@ public final class AnnotationAttribution {
         List<ExtensionReport> updatedRows = new ArrayList<>();
         for (ExtensionReport r : report.dependencies()) {
             if (r.verdict() == Verdict.SUSPECT && credits.containsKey(r.ga())) {
-                List<String> vocab = new ArrayList<>(r.vocabularyEvidence());
-                vocab.add(credits.get(r.ga()));
+                // Contract compliance (skeptic finding 6): sharedReferencedJars is SUSPECT-row-only
+                // per ExtensionReport's javadoc, and vocabularyEvidence carries TASK-8 deployment-
+                // vocabulary type names — neither belongs on a row this pass flipped to
+                // USED_BYTECODE. The note field carries the evidence instead.
                 updatedRows.add(new ExtensionReport(r.ga(), r.quarkusExtension(), Verdict.USED_BYTECODE,
                         r.configInherited(), r.configRoots(), r.configMatchedKeys(), r.configSource(),
                         r.inheritedRoots(), true, r.capabilityEvidence(),
                         "resolved by annotation-consumer signal: " + credits.get(r.ga()),
-                        r.bytecodeViaTransitiveApi(), r.valueRuleEvidence(), r.sharedReferencedJars(), vocab));
+                        r.bytecodeViaTransitiveApi(), r.valueRuleEvidence(), List.of(), r.vocabularyEvidence()));
             } else {
                 updatedRows.add(r);
             }
@@ -187,6 +186,8 @@ public final class AnnotationAttribution {
                     || index.getAnnotations(DotName.createSimple("jakarta.validation.constraints.NotBlank")).stream().findAny().isPresent()
                     || index.getAnnotations(DotName.createSimple("jakarta.validation.constraints.NotEmpty")).stream().findAny().isPresent()
                     || index.getAnnotations(DotName.createSimple("jakarta.validation.constraints.Size")).stream().findAny().isPresent()
+                    // @Valid is jakarta.validation.Valid (not .constraints.Valid — the original
+                    // FQCN never matched, skeptic finding 6)
                     || index.getAnnotations(DotName.createSimple("jakarta.validation.Valid")).stream().findAny().isPresent();
         }
         if (prefix.startsWith("jakarta.validation.executable")) {
@@ -257,42 +258,90 @@ public final class AnnotationAttribution {
             "jakarta.ws.rs.GET", "jakarta.ws.rs.POST", "jakarta.ws.rs.PUT", "jakarta.ws.rs.DELETE",
             "jakarta.ws.rs.PATCH", "jakarta.ws.rs.HEAD", "jakarta.ws.rs.OPTIONS");
 
-    /** Types the app returning which need NO serializer (HTTP machinery or primitives). */
+    /**
+     * Types the app returning which need NO serializer (HTTP machinery or primitives). FQCNs verified
+     * against real jars (skeptic review 2026-08-16): the original table listed three phantom classes
+     * that do not exist in any artifact ({@code io.quarkus.rest.runtime.RestResponse} — the real type
+     * is {@code org.jboss.resteasy.reactive.RestResponse} in resteasy-reactive-common; {@code
+     * io.quarkus.resteasy.runtime.ResteasyResponse} — only a nested wrapper exists; {@code
+     * org.jboss.resteasy.reactive.server.SseInOutEvent} — no such class). Phantom entries never
+     * matched, so {@code RestResponse<String>} endpoints were over-crediting the serializer.
+     */
     private static final Set<String> NON_SERIALIZED_RETURNS = Set.of(
             "void", "boolean", "byte", "char", "short", "int", "long", "float", "double",
             "java.lang.String", "java.lang.Void",
             "jakarta.ws.rs.core.Response", "jakarta.ws.rs.core.StreamingOutput",
-            "io.quarkus.rest.runtime.RestResponse", "io.quarkus.resteasy.runtime.ResteasyResponse",
-            // Qute/HTML and ServerSentEvent returns are not Jackson-serialized either
-            "io.quarkus.qute.TemplateInstance",
-            "org.jboss.resteasy.reactive.server.SseInOutEvent");
+            "org.jboss.resteasy.reactive.RestResponse",
+            // Qute/HTML returns are not Jackson-serialized either
+            "io.quarkus.qute.TemplateInstance");
 
     /**
-     * TASK-21: whether any {@code @Path}-annotated class has a REST-method whose return type needs a
-     * serializer (a POJO: not a primitive, not String/Void, not the HTTP response machinery). This is
-     * the evidence that a declared REST-serializer extension is load-bearing: the ablation bench
-     * (docs/ABLATION-BENCH.md) showed removing it builds green but leaves the fast-jar with zero
-     * serializer artifacts and every POJO endpoint failing at runtime.
+     * TASK-21: whether any REST resource (class-level OR method-level {@code @Path}, including
+     * interface-shaped resources that Quarkus registers from method annotations alone) has a REST
+     * method whose return type needs a serializer. A return type "needs a serializer" when neither
+     * the raw type NOR the type argument of a parameterized wrapper ({@code Uni<T>}, {@code
+     * CompletionStage<T>}, {@code Optional<T>}) is a non-serialized type: {@code Uni<Void>} and
+     * {@code Uni<Response>} collapse to the raw name {@code io.smallrye.mutiny.Uni} which is not in
+     * the exclusion set, so they were over-crediting the serializer (skeptic finding 2).
+     *
+     * <p>Interface resources are included via the method-target branch (skeptic finding 3): Quarkus's
+     * own scanner registers resources from method-level {@code @Path} on interfaces, so dropping
+     * non-CLASS targets produced {@code familyPresent=true} but {@code pojos()=false} — a false
+     * negative on exactly the apps TASK-21 was filed for.
      */
     private static boolean restEndpointsReturningPojos(IndexView index) {
-        var pathClasses = index.getAnnotations(DotName.createSimple("jakarta.ws.rs.Path"));
-        for (var ai : pathClasses) {
-            if (ai.target() == null || ai.target().kind() != org.jboss.jandex.AnnotationTarget.Kind.CLASS) {
+        // Collect the resource classes: @Path on a class targets it directly; @Path on a method
+        // targets its declaring class (same resolution the RESTEasy Reactive scanner applies).
+        Set<org.jboss.jandex.ClassInfo> resourceClasses = new java.util.LinkedHashSet<>();
+        for (var ai : index.getAnnotations(DotName.createSimple("jakarta.ws.rs.Path"))) {
+            if (ai.target() == null) {
                 continue;
             }
-            for (var m : ai.target().asClass().methods()) {
+            if (ai.target().kind() == org.jboss.jandex.AnnotationTarget.Kind.CLASS) {
+                resourceClasses.add(ai.target().asClass());
+            } else if (ai.target().kind() == org.jboss.jandex.AnnotationTarget.Kind.METHOD) {
+                resourceClasses.add(ai.target().asMethod().declaringClass());
+            }
+        }
+        for (org.jboss.jandex.ClassInfo ci : resourceClasses) {
+            for (var m : ci.methods()) {
                 boolean isRestMethod = m.annotations().stream().anyMatch(a ->
                         REST_METHOD_ANNOTATIONS.contains(a.name().toString()));
                 if (!isRestMethod) {
                     continue;
                 }
-                String ret = m.returnType().name().toString();
-                if (!NON_SERIALIZED_RETURNS.contains(ret)) {
-                    return true; // a POJO (or collection/Uni of one) needs a serializer
+                if (returnTypeNeedsSerializer(m.returnType())) {
+                    return true;
                 }
             }
         }
         return false;
+    }
+
+    /**
+     * Whether a REST-method return type needs a serializer: the raw type must not be in {@link
+     * #NON_SERIALIZED_RETURNS} AND, when it is a parameterized async/container wrapper, its type
+     * argument must not be either ({@code Uni<Void>} and {@code Uni<Response>} need no serializer;
+     * {@code Uni<Pojo>} does). Jandex {@code ParameterizedType.name()} returns the raw name (it does
+     * not override {@code name()}), which is why the unwrapping must be explicit.
+     */
+    private static boolean returnTypeNeedsSerializer(org.jboss.jandex.Type type) {
+        // Unwrap one level of async/container wrapper to inspect the payload type.
+        if (type instanceof org.jboss.jandex.ParameterizedType pt) {
+            String raw = pt.name().toString();
+            if (raw.equals("io.smallrye.mutiny.Uni")
+                    || raw.equals("java.util.concurrent.CompletionStage")
+                    || raw.equals("java.util.Optional")) {
+                var args = pt.arguments();
+                if (!args.isEmpty()) {
+                    return returnTypeNeedsSerializer(args.get(0));
+                }
+                return true; // raw Uni/CompletionStage with no argument: assume a payload
+            }
+            // List<Foo>, Set<Foo> etc.: the raw container name is not excluded, so a POJO
+            // element type means the serializer fires — the conservative direction.
+        }
+        return !NON_SERIALIZED_RETURNS.contains(type.name().toString());
     }
 
     /**

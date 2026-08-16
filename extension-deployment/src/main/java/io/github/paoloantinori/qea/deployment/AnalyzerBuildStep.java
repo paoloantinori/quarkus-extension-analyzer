@@ -133,7 +133,7 @@ public final class AnalyzerBuildStep {
         // db-kind values from the app config feed the TASK-23 multi-reactive-client disambiguation.
         Set<String> dbKindValues = new java.util.TreeSet<>();
         for (var e : appConfig.valuesByKey().entrySet()) {
-            if (e.getKey().endsWith(".db-kind") || e.getKey().equals("quarkus.datasource.db-kind")) {
+            if (e.getKey().endsWith(".db-kind")) {
                 dbKindValues.addAll(e.getValue());
             }
         }
