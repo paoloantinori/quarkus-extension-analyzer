@@ -794,3 +794,55 @@ deliberately keeps literal-path fixture helpers independent of MavenLayout
 create and probe the same wrong path, passing vacuously).
 
 Verification: 149 tests green, full reactor BUILD SUCCESS.
+
+### Work unit 22, 2026-08-17, Post-fix bench re-validation (real-app, mutation-checked)
+
+The phantom-probe fixes (RegisterRestClient, smallrye FT), the FILE: root
+threading (TASK-24) and the readAppConfig consolidation (TASK-26) changed
+production behavior, so the bench baseline needed re-verification.
+
+Environment finding first: the local super-heroes checkout (platform bumped
+to 3.38.1) no longer builds PRISTINE - generate-code fails with an upstream
+OpenAPI.getExtensions() NPE from the openapi-generator integration (verified
+on rest-fights and rest-heroes without any analyzer involvement). The old
+extension-form baselines (fights 7/11/2/3, heroes 5/7/1/5) cannot be
+reproduced on this checkout; documented as a bench caveat in
+EXTENSION-USAGE.md rather than worked around by mutating the apps further.
+
+What WAS validated, on buildable real apps:
+1. resteasy-client-quickstart (declares both jackson serializers, uses
+   @RegisterRestClient): the extension fires end-to-end; the
+   annotation-consumer pass runs with correct evidence (resteasy-jackson
+   credited via REST-SERIALIZER); resteasy-client-jackson was already
+   used-CONFIG (the app configures the client URL) and is correctly left
+   untouched (the non-suspect guard working on a real app). No quickstart
+   declares resteasy-client-jackson as a suspect, so the RegisterRestClient
+   rule's flip path remains covered by the behavioral suite rather than a
+   bench app; no bench app uses @ApplyGuard either.
+2. TASK-24 discriminating scenario, constructed on the quickstart (deps +
+   application.yml added with backup, then restored): built via
+   `mvn -f <module>/pom.xml` from an unrelated CWD.
+   - Fixed code: config-yaml flips to used-bytecode via the FILE:
+     application.yml credit (probes the module root derived from the
+     ApplicationModel), suspects 1.
+   - Mutant (probe reverted to CWD-relative, installed with -DskipTests):
+     config-yaml stays SUSPECT, suspects 2. The mutation also failed the
+   behavioral suite's 4 FILE: pins when installed normally, which is why
+   the mutant needed -DskipTests to reach the app at all.
+   That is the end-to-end, real-augmentation proof that the CWD fix changes
+   exactly the intended behavior.
+3. A script bug was caught and fixed during the bench: the pom insertion
+   landed inside <dependencyManagement> (which also has a <dependencies>
+   tag), so the first restclient run built WITHOUT the extension and passed
+   vacuously (empty log, exit 0 - spotted because the analyzer never logged
+   "build step firing"). Insertion now anchors after </dependencyManagement>.
+   Every bench app pom was verified restored (0 analyzer refs, backups
+   removed); grpc-locations, villains, narration, Apicurio untouched.
+
+Docs: EXTENSION-USAGE.md rule table updated to the real 14-family table
+(RegisterRestClient, qute, FILE:, REST-SERIALIZER rows added; the
+"annotation present" claim reworded to cover file/type/return evidence) and
+the super-heroes bench caveat recorded.
+
+Verification: extension suite 51+3 green after the mutation restore; source
+verified byte-identical to the committed TASK-26 state.

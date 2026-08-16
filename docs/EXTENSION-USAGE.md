@@ -54,9 +54,15 @@ known annotation families and credits the extension that processes each:
 | `org.eclipse.microprofile.faulttolerance.*` (`@Fallback`, `@Retry`, etc.) | `quarkus-smallrye-fault-tolerance` |
 | `io.quarkus.mongodb.panache.*` (Panache entities) | `quarkus-mongodb-panache` |
 | `org.eclipse.microprofile.openapi.annotations.*` (`@Operation`, `@Schema`) | `quarkus-smallrye-openapi` |
+| `io.smallrye.faulttolerance.api.*` (`@ApplyGuard`, `@ApplyFaultTolerance`) | `quarkus-smallrye-fault-tolerance` |
+| `org.eclipse.microprofile.rest.client.inject.RegisterRestClient` | `quarkus-resteasy-client-jackson` (the client serializer; server `@Path` never credits it) |
+| `io.quarkus.qute.*` (`@CheckedTemplate`, `TemplateInstance` returns) | `quarkus-rest-qute` |
+| `application.yml` / `application.yaml` shipped under the module's `src/main/resources` or `target/classes` | `quarkus-config-yaml` (resolved under the module root being augmented, not the build CWD) |
+| REST endpoints returning POJOs (`@Path` + `@GET` returning anything the serializer must convert; `Uni<Pojo>`, `RestResponse<Pojo>` unwrap) | `quarkus-rest-jackson` / `quarkus-resteasy-jackson` |
 
-Each rule fires only when the annotation is actually present in the app's bean
-index AND the target extension is a directly-declared suspect (so it never
+Each rule fires only when the family's probe evidence is present (annotation
+usage in the bean index, a declared type, a shipped file, or endpoint return
+types) AND the target extension is a directly-declared suspect (so it never
 manufactures a verdict for an undeclared extension).
 
 ### Bench results
@@ -74,9 +80,15 @@ manufactures a verdict for an undeclared extension).
   remain `suspect` with evidence.
 - **The extension itself appears as a suspect** in the report (correct: an analyzer
   extension has no app-side usage signal). Filter it out mentally.
-- The annotation-consumer rules are a **curated table** (10 families). Extensions
+- The annotation-consumer rules are a **curated table** (14 distinct families,
+  17 entries; see `AnnotationAttribution.RULES`). Extensions
   not in the table fall through to the three core signals. The table is
   extensible; submit additions validated against real bench data.
+- **Bench caveat (2026-08-17):** the local super-heroes checkout (platform
+  3.38.1) no longer builds pristine: `generate-code` fails with an upstream
+  `OpenAPI.getExtensions()` NPE from the openapi-generator integration
+  (verified on rest-fights and rest-heroes WITHOUT the analyzer extension).
+  Extension-form bench numbers on those apps predate that bump.
 
 ## Architecture
 
