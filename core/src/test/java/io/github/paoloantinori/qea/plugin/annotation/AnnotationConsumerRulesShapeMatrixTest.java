@@ -90,6 +90,8 @@ class AnnotationConsumerRulesShapeMatrixTest {
                 shape("Instance<? extends Jwt>", true, wildcardField(INSTANCE, JWT)),
                 shape("Provider<Instance<Jwt>> nested (no credit; near-miss territory)",
                         false, nestedField("jakarta.enterprise.inject.Provider", INSTANCE, JWT)),
+                shape("Jwt[][] 2D array (array of a usage type at any depth is usage)",
+                        true, array2Field(JWT)),
                 shape("Instance<String> unrelated argument", false, genericField(INSTANCE, "java.lang.String")),
                 shape("bare String field", false, fieldClass("java.lang.String"))));
     }
@@ -158,7 +160,12 @@ class AnnotationConsumerRulesShapeMatrixTest {
                         restMethod("()Ljakarta/ws/rs/core/Response;", null)),
                 shape("TemplateInstance (rendered, not serialized)", false,
                         restMethod("()Lio/quarkus/qute/TemplateInstance;", null)),
-                shape("Pojo[] array", true, restMethod("()[L" + internal(POJO) + ";", null))));
+                shape("Pojo[] array", true, restMethod("()[L" + internal(POJO) + ";", null)),
+                shape("Pojo[][] 2D array", true, restMethod("()[[L" + internal(POJO) + ";", null)),
+                shape("String[] (array of an excluded type must NOT credit)", false,
+                        restMethod("()[Ljava/lang/String;", null)),
+                shape("Void[] (array of an excluded type must NOT credit)", false,
+                        restMethod("()[Ljava/lang/Void;", null))));
     }
 
     // --- harness ---------------------------------------------------------------------------------------
@@ -249,10 +256,19 @@ class AnnotationConsumerRulesShapeMatrixTest {
     }
 
     private static byte[] arrayField(String componentFqcn) {
+        return arrayFieldN(1, componentFqcn, "matrix/A");
+    }
+
+    private static byte[] array2Field(String componentFqcn) {
+        return arrayFieldN(2, componentFqcn, "matrix/A2");
+    }
+
+    private static byte[] arrayFieldN(int dims, String componentFqcn, String className) {
+        String one = "[L" + internal(componentFqcn) + ";";
+        String desc = one.repeat(dims);
         var cw = new ClassWriter(0);
-        cw.visit(Opcodes.V17, Opcodes.ACC_PUBLIC, "matrix/A", null, "java/lang/Object", null);
-        cw.visitField(Opcodes.ACC_PUBLIC, "f", "[L" + internal(componentFqcn) + ";",
-                "[L" + internal(componentFqcn) + ";", null).visitEnd();
+        cw.visit(Opcodes.V17, Opcodes.ACC_PUBLIC, className, null, "java/lang/Object", null);
+        cw.visitField(Opcodes.ACC_PUBLIC, "f", desc, desc, null).visitEnd();
         cw.visitEnd();
         return cw.toByteArray();
     }

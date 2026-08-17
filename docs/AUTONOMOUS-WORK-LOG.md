@@ -1159,3 +1159,28 @@ wrong shared belief into a failing cell and a one-branch fix.
 
 Verification: matrix 5 tests (~30 cells) + behavioral 58 green; full
 reactor BUILD SUCCESS (169 tests).
+
+### Work unit 33, 2026-08-17, TASK-33 review round: the matrix's second and third catches
+
+The adversarial review (agent dispatch had been classifier-blocked; the
+critical String[] check ran in-context first, then the agent independently
+confirmed and extended it) APPROVED with two hardening suggestions, both
+applied (Pojo[][] serializer cell; javadoc clarifying that generic-wrapped
+arrays like Instance<Jwt[]> stay unflagged and are near-miss territory).
+
+The matrix's first-day tally is now THREE catches: (1) the Jwt[] belief
+(Jandex ArrayType.name() is bracketed, not the component - a prior
+reviewer's bytecode claim was empirically false); (2) a live serializer
+false positive: String[]/Void[] returns credited the serializer because the
+bracketed name slips past the exclusion set - fixed with a recursive array
+unwrap in returnTypeNeedsSerializer (all exclusion entries verified
+unbypassable, including Uni<Response[]> nesting); (3) the Jwt[][] semantics
+decision (arrays of a usage type at any depth are usage; recursion).
+Bench drift after the production changes: zero (Apicurio 9/8/5/2 same two
+suspects; rest-heroes 7/8/1/2 = baseline modulo the analyzer row;
+cache-quickstart 0 suspects with credits intact).
+
+Verification: matrix 6 tests, behavioral 58, full reactor BUILD SUCCESS
+(169 tests). One process slip noted: a bench CWD leftover made one
+'mvn clean install' build the quickstart instead of the reactor (no
+damage; re-run from the repo root).

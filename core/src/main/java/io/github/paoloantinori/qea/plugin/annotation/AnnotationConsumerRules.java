@@ -511,6 +511,12 @@ public final class AnnotationConsumerRules {
      * a machinery type.
      */
     private static boolean returnTypeNeedsSerializer(org.jboss.jandex.Type type) {
+        // Arrays: Jandex ArrayType.name() is the BRACKETED name, so an array of an excluded type
+        // (String[], Void[]) must recurse to the component or it would slip past the exclusion
+        // set and credit the serializer (a live false positive found by the TASK-33 matrix).
+        if (type instanceof org.jboss.jandex.ArrayType at) {
+            return returnTypeNeedsSerializer(at.component());
+        }
         // Unwrap one level of async/container wrapper to inspect the payload type.
         if (type instanceof org.jboss.jandex.ParameterizedType pt) {
             String raw = pt.name().toString();
@@ -627,9 +633,12 @@ public final class AnnotationConsumerRules {
     /**
      * Whether a declared type IS the exact JWT type, wraps it as a single type argument
      * ({@code Instance<JsonWebToken>}, the CDI shape the Apicurio bench uses), or is an array of
-     * it ({@code JsonWebToken[]}: Jandex {@code ArrayType.name()} is the bracketed name, not the
-     * component, found by the TASK-33 matrix). Deeper nesting
-     * ({@code Provider<Instance<JsonWebToken>>}) does not occur in real code and stays unflagged.
+     * it at any depth ({@code JsonWebToken[]}, {@code JsonWebToken[][]}: Jandex
+     * {@code ArrayType.name()} is the bracketed name, not the component, found by the TASK-33
+     * matrix). Two shapes deliberately stay unflagged and are near-miss territory instead:
+     * generic-wrapped arrays ({@code Instance<JsonWebToken[]>}, whose argument name is bracketed)
+     * and deeper generic nesting ({@code Provider<Instance<JsonWebToken>>}), neither observed in
+     * real code.
      */
     private static boolean mentionsJwt(org.jboss.jandex.Type type) {
         if (type.name().toString().equals(JSON_WEB_TOKEN_TYPE)) {
@@ -639,7 +648,7 @@ public final class AnnotationConsumerRules {
             return pt.arguments().stream().anyMatch(a -> a.name().toString().equals(JSON_WEB_TOKEN_TYPE));
         }
         if (type instanceof org.jboss.jandex.ArrayType at) {
-            return at.component().name().toString().equals(JSON_WEB_TOKEN_TYPE);
+            return mentionsJwt(at.component());
         }
         return false;
     }
