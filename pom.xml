@@ -53,7 +53,7 @@
     <!-- Version of the Quarkus bootstrap resolver libraries this project embeds; independent of the
          Quarkus version of the project being analyzed (the ApplicationModel/resolver API is stable
          across 3.x). -->
-    <quarkus.version>3.33.2.1</quarkus.version>
+    <quarkus.version>3.38.2</quarkus.version>
     <maven.version>3.9.9</maven.version>
     <plugin-tools.version>3.15.1</plugin-tools.version>
     <resolver.version>1.9.22</resolver.version>

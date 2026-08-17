@@ -1051,3 +1051,33 @@ Claims verified against ground truth before writing: 52-test behavioral
 suite (counted and re-run green), module list from the root pom, mojo flags
 from the @Parameter properties, extension coordinates from extension/pom.xml,
 quarkus.version 3.33.2.1 from the root pom, zero em-dashes in new prose.
+
+### Work unit 29, 2026-08-17, TASK-30 + TASK-29: ground-truth re-verification and the 3.38.2 bump
+
+TASK-30 (ground truth vs the post-shade-fix mojo): all 13 ablation rows
+re-checked on the five surviving apps. 12 conformed. The 13th reversed the
+GROUND TRUTH, not the tool: jwt-qs/rest-jackson was classified "false
+positive (serialization-only)" on the assumption of POJO-returning
+endpoints, but the app returns String from every endpoint. Re-ablated with
+the stronger oracle (dep removed, mvn verify green incl. all 9
+TokenSecuredResourceTest endpoint tests, started app's installed features
+contain no jackson): genuinely removable, the tool's suspect verdict
+correct. ABLATION-BENCH.md gained a dated re-verification section with the
+methodological corollary (runtime-impact claims must be checked against
+actual endpoint shapes). The tool now matches empirical ground truth 13/13.
+
+TASK-29 (quarkus.version 3.33.2.1 -> 3.38.2, user-confirmed after a
+classifier hold): full reactor green on the bump including
+ShadedJarRelocationIT (the designed upgrade guard: it reads the freshly
+shaded jar). Relocation coverage verified explicitly: 0 unrelocated
+io/quarkus entries, same seven packages (3.38.2 added none to the resolver
+transitives). All value-rules GAs re-verified against the 3.38.2 BOM (all
+real; the mariadb reactive GA still absent, consistent with TASK-27).
+Bench with versions aligned: mojo on rest-heroes identical (suspects
+{info, micrometer-otel}, three annotation-consumer credits), extension form
+identical to the recorded baseline (7/8/1/3). Version citations updated in
+value-rules.txt, CLAUDE.md, and spike/pom.xml; historical bench docs left
+as written. Bench poms verified restored.
+
+Verification: mvn clean install BUILD SUCCESS, 158 tests; bench runs
+captured in /tmp/qea-reval/*-3382-*.

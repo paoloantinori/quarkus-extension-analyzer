@@ -29,7 +29,7 @@ mvn clean install    # full reactor, runs all suites incl. the shaded IT
 ```
 
 Java 17; `quarkus.version` (root pom) pins the bootstrap APIs, currently
-3.33.2.1. The suite map: core holds the 52-test behavioral rules suite
+3.38.2. The suite map: core holds the 52-test behavioral rules suite
 (`AnnotationConsumerRulesBehaviorTest`), the config/value-rules suites, and
 the analyzer suites; `shaded` holds the runner derivation test and
 `ShadedJarRelocationIT` (failsafe, runs AFTER shade); `extension-deployment`
