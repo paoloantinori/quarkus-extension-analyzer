@@ -430,21 +430,6 @@ public final class AnnotationConsumerRules {
      * because the {@code NON_SERIALIZED_RETURNS} set alone cannot discriminate parameterized uses of
      * a machinery type.
      */
-    /**
-     * Whether a declared type IS the exact JWT type or wraps it as a single type argument
-     * ({@code Instance<JsonWebToken>}, the CDI shape the Apicurio bench uses). Deeper nesting
-     * ({@code Provider<Instance<JsonWebToken>>}) does not occur in real code and stays unflagged.
-     */
-    private static boolean mentionsJwt(org.jboss.jandex.Type type) {
-        if (type.name().toString().equals(JSON_WEB_TOKEN_TYPE)) {
-            return true;
-        }
-        if (type instanceof org.jboss.jandex.ParameterizedType pt && !pt.arguments().isEmpty()) {
-            return pt.arguments().stream().anyMatch(a -> a.name().toString().equals(JSON_WEB_TOKEN_TYPE));
-        }
-        return false;
-    }
-
     private static boolean returnTypeNeedsSerializer(org.jboss.jandex.Type type) {
         // Unwrap one level of async/container wrapper to inspect the payload type.
         if (type instanceof org.jboss.jandex.ParameterizedType pt) {
@@ -557,6 +542,21 @@ public final class AnnotationConsumerRules {
             }
         }
         return values;
+    }
+
+    /**
+     * Whether a declared type IS the exact JWT type or wraps it as a single type argument
+     * ({@code Instance<JsonWebToken>}, the CDI shape the Apicurio bench uses). Deeper nesting
+     * ({@code Provider<Instance<JsonWebToken>>}) does not occur in real code and stays unflagged.
+     */
+    private static boolean mentionsJwt(org.jboss.jandex.Type type) {
+        if (type.name().toString().equals(JSON_WEB_TOKEN_TYPE)) {
+            return true;
+        }
+        if (type instanceof org.jboss.jandex.ParameterizedType pt && !pt.arguments().isEmpty()) {
+            return pt.arguments().stream().anyMatch(a -> a.name().toString().equals(JSON_WEB_TOKEN_TYPE));
+        }
+        return false;
     }
 
     /**

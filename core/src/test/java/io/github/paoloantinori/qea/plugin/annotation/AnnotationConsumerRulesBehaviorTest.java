@@ -550,6 +550,18 @@ class AnnotationConsumerRulesBehaviorTest {
         assertStillSuspect(idx, SMALLRYE_JWT);
     }
 
+    @Test
+    void instanceOfASimilarlyNamedUserTypeDoesNotCreditSmallryeJwt() throws IOException {
+        // The unwrap must stay exact-FQCN on the TYPE ARGUMENT too: a contains() regression
+        // would fire on Instance<com.acme.JsonWebTokenWrapper> the way the original raw-type
+        // probe did (code-review finding 5).
+        Index idx = index(
+                genericFieldClass("res.Q", "jakarta.enterprise.inject.Instance",
+                        "com.acme.JsonWebTokenWrapper"),
+                plainClass("com.acme.JsonWebTokenWrapper"));
+        assertStillSuspect(idx, SMALLRYE_JWT);
+    }
+
     // --- reactive-driver join (TASK-22/23) --------------------------------------------------------------
 
     @Test
