@@ -1,0 +1,2 @@
+io.quarkus:quarkus-info
+io.quarkus:quarkus-micrometer-opentelemetry

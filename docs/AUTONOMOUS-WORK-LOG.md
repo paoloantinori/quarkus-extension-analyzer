@@ -1184,3 +1184,26 @@ Verification: matrix 6 tests, behavioral 58, full reactor BUILD SUCCESS
 (169 tests). One process slip noted: a bench CWD leftover made one
 'mvn clean install' build the quickstart instead of the reactor (no
 damage; re-run from the repo root).
+
+### Work unit 34, 2026-08-17, TASK-34: bench snapshot harness
+
+scripts/bench-snapshot.sh runs the mojo over six pinned bench apps (rest-
+heroes/fights @ super-heroes-fresh a3f2ce1; resteasy-client/cache/
+security-jwt quickstarts @ 31306c8; apicurio app @ 400a3db) and diffs each
+app's extension-suspect list against a committed bench/expected/*.expected
+file: drift = non-zero exit. Refresh is a deliberate --update with a
+documented reason. The CLAUDE.md convention now says it explicitly: every
+rules-engine change re-runs the bench (the discipline the Apicurio bug
+survived without).
+
+Verified end-to-end in all three directions: clean run exit 0 (all six
+apps OK), injected drift (one bogus GA appended to an expected file) exit 1
+with the diff printed, restored run exit 0. The expected files were first
+hand-written from the session's verified runs during a classifier outage
+(all Bash/MCP evaluations failing for several minutes); the authoritative
+--update regeneration matched them with zero diff, and produced
+security-jwt-quickstart.expected = {quarkus-rest-jackson}, further
+confirming the reversed ground truth from TASK-30.
+
+The task also refreshed the TODO state: TASK-33's backlog marking was
+blocked by the same outage and is recorded in unit 33's summary here.

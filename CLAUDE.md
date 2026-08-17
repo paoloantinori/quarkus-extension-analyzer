@@ -86,6 +86,10 @@ holds the adapter tests.
 
 ## Working conventions
 
+- **Every rules-engine change re-runs the bench**: `scripts/bench-snapshot.sh`
+  (machine-checked baselines in bench/expected/; drift fails the run;
+  refresh only with `--update`, recording why in the work log). This is the
+  discipline the Apicurio bug survived without.
 - Task tracking via the Backlog MCP (`task_create` / `task_edit` / `task_complete`);
   a task is Done only with its Definition of Done: /simplify (four angles) and
   a /code-review-equivalent pass (the /code-review skill is user-invocation
