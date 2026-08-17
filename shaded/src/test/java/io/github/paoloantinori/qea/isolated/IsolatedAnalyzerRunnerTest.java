@@ -96,6 +96,32 @@ class IsolatedAnalyzerRunnerTest {
         assertThat(rowOf(notCredited, "io.quarkus:quarkus-config-yaml").verdict()).isEqualTo(Verdict.SUSPECT);
     }
 
+    @Test
+    void deploymentConsumerCreditsTheSuspect(@TempDir Path moduleDir) throws IOException {
+        // TASK-38, mojo-shell copy of the derivation: keycloak-server-deployment declares
+        // rest-jackson-deployment, so the rest-jackson suspect row CREDITS (the extension
+        // descriptor enforces the runtime counterpart's declaration; ablation-verified).
+        ApplicationModel model = modelOf(
+                deploymentDep("org.keycloak", "keycloak-quarkus-server-deployment",
+                        "io.quarkus:quarkus-rest-jackson-deployment"),
+                dep("io.quarkus", "quarkus-rest-jackson", true, true));
+        AnalysisReport report = report(suspect("io.quarkus:quarkus-rest-jackson"));
+
+        AnalysisReport out = IsolatedAnalyzerRunner.applyAnnotationConsumers(
+                model, project(moduleDir, "no-such-classes"), AppConfigReader.empty(), report);
+
+        assertThat(rowOf(out, "io.quarkus:quarkus-rest-jackson").verdict()).isEqualTo(Verdict.USED_BYTECODE);
+        assertThat(rowOf(out, "io.quarkus:quarkus-rest-jackson").note()).contains("deployment-consumer")
+                .contains("org.keycloak:keycloak-quarkus-server");
+    }
+
+    private static ResolvedDependency deploymentDep(String g, String a, String depCoords) {
+        return ResolvedDependencyBuilder.newInstance()
+                .setGroupId(g).setArtifactId(a).setVersion("1.0").setDeploymentCp()
+                .addDependency(io.quarkus.maven.dependency.ArtifactCoords.fromString(depCoords + ":1.0"))
+                .build();
+    }
+
     // --- fixtures -----------------------------------------------------------------------------------
 
     private static MavenProject project(Path basedir, String outputDirName) throws IOException {

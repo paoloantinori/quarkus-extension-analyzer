@@ -58,6 +58,48 @@ class AnnotationAttributionAdapterTest {
     }
 
     @Test
+    void deploymentConsumersMapsDirectDeploymentEdgesOnly() {
+        // TASK-38: keycloak-server-deployment declares rest-jackson-deployment (direct edge ->
+        // mapped); carrier-deployment declares mid-deployment but NOT rest-jackson-deployment, so
+        // the transitive rest-jackson edge through mid must NOT be misattributed to carrier.
+        ApplicationModel model = modelOf(
+                deployment("org.keycloak", "keycloak-quarkus-server-deployment",
+                        io.quarkus.maven.dependency.ArtifactCoords.fromString(
+                                "io.quarkus:quarkus-rest-jackson-deployment:1.0")),
+                deployment("io.quarkus", "quarkus-rest-jackson-deployment",
+                        io.quarkus.maven.dependency.ArtifactCoords.fromString(
+                                "io.quarkus:quarkus-core-deployment:1.0")),
+                deployment("com.acme", "carrier-deployment",
+                        io.quarkus.maven.dependency.ArtifactCoords.fromString(
+                                "io.acme:mid-deployment:1.0")),
+                deployment("io.acme", "mid-deployment",
+                        io.quarkus.maven.dependency.ArtifactCoords.fromString(
+                                "io.quarkus:quarkus-rest-jackson-deployment:1.0")));
+
+        assertThat(AnnotationAttribution.collectDeploymentConsumers(model)).containsEntry(
+                "io.quarkus:quarkus-rest-jackson", "org.keycloak:keycloak-quarkus-server");
+    }
+
+    @Test
+    void runtimeArtifactsAreIgnoredForDeploymentConsumers() {
+        // A runtime artifact whose pom lists a -deployment GA (unusual but possible) must not
+        // create an edge: only deployment-artifact consumers count.
+        ApplicationModel model = modelOf(
+                dep("io.quarkus", "quarkus-rest", true, true));
+        assertThat(AnnotationAttribution.collectDeploymentConsumers(model)).isEmpty();
+    }
+
+    private static ResolvedDependency deployment(String g, String a,
+            io.quarkus.maven.dependency.ArtifactCoords... deps) {
+        var b = ResolvedDependencyBuilder.newInstance()
+                .setGroupId(g).setArtifactId(a).setVersion("1.0").setDeploymentCp();
+        for (var d : deps) {
+            b.addDependency(d);
+        }
+        return b.build();
+    }
+
+    @Test
     void applyDelegatesEndToEndWithCorrectArgumentOrder(@TempDir java.nio.file.Path withYml)
             throws IOException {
         // End-to-end through the adapter (the delegation passes five positional args, two of them

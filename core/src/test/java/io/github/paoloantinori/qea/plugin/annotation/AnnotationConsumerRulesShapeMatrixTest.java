@@ -174,7 +174,7 @@ class AnnotationConsumerRulesShapeMatrixTest {
         for (Shape s : shapes) {
             Index idx = index(s.clazz());
             AnalysisReport out = AnnotationConsumerRules.apply(reportWithSuspect(ga), idx,
-                    Set.of(ga), Set.of(), NOWHERE);
+                    Set.of(ga), Set.of(), NOWHERE, java.util.Map.of());
             Verdict verdict = out.dependencies().stream()
                     .filter(r -> r.ga().equals(ga)).findFirst().orElseThrow().verdict();
             assertThat(verdict)

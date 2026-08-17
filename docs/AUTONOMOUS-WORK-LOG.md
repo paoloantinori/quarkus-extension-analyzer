@@ -1312,3 +1312,36 @@ extension's deployment module") is a candidate future rule
 Promoted: seventh app in scripts/bench-snapshot.sh (keycloak-runtime,
 pinned 6c73e30), expected file generated and verified; full bench
 seven-app run green.
+
+### Work unit 38, 2026-08-17, TASK-38: deployment-consumer credits (and the ablation that reversed the design)
+
+Implemented the deployment-consumer rule from the Keycloak finding: apply()
+gains a sixth input (suspect GA -> consuming extension GA, derived in both
+shells from the ApplicationModel: a -deployment artifact's DIRECT dependency
+list, so transitively pulled -deployment artifacts are never misattributed;
+direct-only verified by a dedicated test).
+
+THE DESIGN REVERSAL: the first implementation was note-enrichment (verdict
+unchanged, note calling the declaration "redundant per-module") - the
+trade-off recorded in the task. The task's own validation step refuted it:
+ablating quarkus-hibernate-validator from keycloak quarkus/runtime's pom
+(pom-only removal, the exact "redundant" claim) FAILS THE BUILD, because
+Quarkus's extension-descriptor plugin enforces that every -deployment
+artifact's runtime counterpart is declared: "...depends on the following
+Quarkus extension deployment artifacts whose corresponding runtime
+artifacts were not found". The declaration is REQUIRED, not redundant, so
+the rule now CREDITS (used-bytecode, evidence naming the consumer and the
+descriptor enforcement). Pins updated to the credit semantics in the engine
+suite and both shells' derivation tests.
+
+Coverage note: on Keycloak the mojo's app model surfaces the quarkus-
+internal deployment edges (micrometer <- micrometer-registry-prometheus,
+opentelemetry <- micrometer) but not the keycloak-server-deployment edges,
+so 2 of the 6 original suspects credit and 4 remain suspect. The extension
+form sees the full deployment tree (its model comes from augmentation), so
+the remaining 4 are TASK-39 scope (the closure becomes first-class). Bench
+refreshed deliberately: keycloak-runtime expected 6 -> 4 suspects, all
+other apps unchanged (verified zero drift before the refresh).
+
+Keycloak ablation pom restored byte-identical. Full reactor 176 tests
+green (165 core + 4 runner + 2 IT + 5 adapter).

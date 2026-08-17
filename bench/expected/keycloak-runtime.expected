@@ -1,6 +1,4 @@
 io.quarkus:quarkus-hibernate-validator
-io.quarkus:quarkus-micrometer
 io.quarkus:quarkus-micrometer-opentelemetry
 io.quarkus:quarkus-micrometer-registry-prometheus
-io.quarkus:quarkus-opentelemetry
 io.quarkus:quarkus-rest-jackson

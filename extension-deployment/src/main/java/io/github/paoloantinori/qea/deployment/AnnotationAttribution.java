@@ -53,7 +53,7 @@ public final class AnnotationAttribution {
     public static AnalysisReport apply(AnalysisReport report, IndexView beanIndex, ApplicationModel model,
             Set<String> dbKindValues, Path projectRoot) {
         return AnnotationConsumerRules.apply(report, beanIndex, collectDeclaredExtensionGas(model),
-                dbKindValues, projectRoot);
+                dbKindValues, projectRoot, collectDeploymentConsumers(model));
     }
 
     /**
@@ -68,5 +68,33 @@ public final class AnnotationAttribution {
             }
         }
         return gas;
+    }
+
+    /**
+     * TASK-38: suspect GA -> the extension whose DEPLOYMENT artifact directly declares the
+     * suspect's -deployment artifact (the Keycloak shape: the runtime pom declares extensions
+     * consumed by the server extension's deployment tree). Direct declarations only: each
+     * deployment artifact's {@code getDependencies()} is its own POM's list, so a transitively
+     * pulled -deployment would be misattributed to its intermediate carrier. Mirrors the mojo
+     * shell's copy in IsolatedAnalyzerRunner (the derivation needs bootstrap types core must not
+     * depend on); both copies are pinned by tests.
+     */
+    static java.util.Map<String, String> collectDeploymentConsumers(ApplicationModel model) {
+        java.util.Map<String, String> consumers = new java.util.LinkedHashMap<>();
+        for (ResolvedDependency d : model.getDependencies()) {
+            if (!d.isDeploymentCp() || !d.getArtifactId().endsWith("-deployment")) {
+                continue;
+            }
+            String consumerGa = d.getGroupId() + ":"
+                    + d.getArtifactId().substring(0, d.getArtifactId().length() - "-deployment".length());
+            for (io.quarkus.maven.dependency.ArtifactCoords dep : d.getDependencies()) {
+                if (dep.getArtifactId().endsWith("-deployment")) {
+                    String consumedGa = dep.getGroupId() + ":" + dep.getArtifactId()
+                            .substring(0, dep.getArtifactId().length() - "-deployment".length());
+                    consumers.putIfAbsent(consumedGa, consumerGa);
+                }
+            }
+        }
+        return consumers;
     }
 }

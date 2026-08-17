@@ -382,7 +382,7 @@ class AnnotationConsumerRulesBehaviorTest {
 
     /** The row for {@code ga} after running apply() over a single-suspect report for it. */
     private static ExtensionReport applied(Index index, String ga) {
-        return rowOf(AnnotationConsumerRules.apply(report(suspect(ga)), index, Set.of(ga), Set.of(), NOWHERE), ga);
+        return rowOf(AnnotationConsumerRules.apply(report(suspect(ga)), index, Set.of(ga), Set.of(), NOWHERE, java.util.Map.of()), ga);
     }
 
     /** Single-suspect shorthand: {@code ga} is declared, suspected, and must flip to used. */
@@ -494,7 +494,7 @@ class AnnotationConsumerRulesBehaviorTest {
         Index idx = index(pathResource("res.J", rawRet(POJO)));
         AnalysisReport out = AnnotationConsumerRules.apply(
                 report(suspect(QUARKUS_REST), suspect(RESTEASY), suspect(RESTEASY_JACKSON)),
-                idx, Set.of(QUARKUS_REST, RESTEASY, RESTEASY_JACKSON), Set.of(), NOWHERE);
+                idx, Set.of(QUARKUS_REST, RESTEASY, RESTEASY_JACKSON), Set.of(), NOWHERE, java.util.Map.of());
         assertThat(rowOf(out, QUARKUS_REST).verdict()).isEqualTo(Verdict.USED_BYTECODE);
         assertThat(rowOf(out, RESTEASY).verdict()).isEqualTo(Verdict.USED_BYTECODE);
         assertThat(rowOf(out, RESTEASY_JACKSON).verdict()).isEqualTo(Verdict.USED_BYTECODE);
@@ -506,7 +506,7 @@ class AnnotationConsumerRulesBehaviorTest {
         // row for an extension that is not declared (empty declared set here) must stay suspect.
         Index idx = index(pathResource("res.K", rawRet(POJO)));
         AnalysisReport out = AnnotationConsumerRules.apply(report(suspect(REST_JACKSON)), idx,
-                Set.of(), Set.of(), NOWHERE);
+                Set.of(), Set.of(), NOWHERE, java.util.Map.of());
         assertThat(rowOf(out, REST_JACKSON).verdict()).isEqualTo(Verdict.SUSPECT);
     }
 
@@ -514,7 +514,7 @@ class AnnotationConsumerRulesBehaviorTest {
     void noAnnotationsNoJoinReturnsReportUnchanged() throws IOException {
         // Identity path: nothing fired, apply() returns the same instance untouched.
         AnalysisReport in = report(suspect(REST_JACKSON));
-        assertThat(AnnotationConsumerRules.apply(in, STUB_ONLY_INDEX, Set.of(REST_JACKSON), Set.of(), NOWHERE))
+        assertThat(AnnotationConsumerRules.apply(in, STUB_ONLY_INDEX, Set.of(REST_JACKSON), Set.of(), NOWHERE, java.util.Map.of()))
                 .isSameAs(in);
     }
 
@@ -572,6 +572,38 @@ class AnnotationConsumerRulesBehaviorTest {
         assertStillSuspect(idx, SMALLRYE_JWT);
     }
 
+    // --- deployment-consumer credits (TASK-38) --------------------------------------------------------
+
+    @Test
+    void deploymentConsumerCreditsTheSuspect() {
+        // The Keycloak shape, empirically REVERSED from note-enrichment by the ablation: the
+        // Quarkus extension descriptor REFUSES to build when a -deployment artifact's runtime
+        // counterpart is not declared, so the declaration is required -> used-bytecode.
+        AnalysisReport out = AnnotationConsumerRules.apply(report(suspect(REST_JACKSON)),
+                STUB_ONLY_INDEX, Set.of(REST_JACKSON), Set.of(), NOWHERE,
+                java.util.Map.of(REST_JACKSON, "org.keycloak:keycloak-quarkus-server"));
+        assertThat(rowOf(out, REST_JACKSON).verdict()).isEqualTo(Verdict.USED_BYTECODE);
+        assertThat(rowOf(out, REST_JACKSON).note()).contains("deployment-consumer")
+                .contains("org.keycloak:keycloak-quarkus-server");
+    }
+
+    @Test
+    void deploymentConsumerLeavesNonSuspectRowsUntouched() {
+        AnalysisReport out = AnnotationConsumerRules.apply(
+                report(row(REST_JACKSON, Verdict.USED_CONFIG)),
+                STUB_ONLY_INDEX, Set.of(REST_JACKSON), Set.of(), NOWHERE,
+                java.util.Map.of(REST_JACKSON, "org.keycloak:keycloak-quarkus-server"));
+        assertThat(rowOf(out, REST_JACKSON).note()).isNull();
+    }
+
+    @Test
+    void emptyDeploymentConsumersMapChangesNothing() {
+        AnalysisReport in = report(suspect(REST_JACKSON));
+        AnalysisReport out = AnnotationConsumerRules.apply(in, STUB_ONLY_INDEX,
+                Set.of(REST_JACKSON), Set.of(), NOWHERE, java.util.Map.of());
+        assertThat(out).isSameAs(in);
+    }
+
     // --- near-miss telemetry (TASK-32) -----------------------------------------------------------------
 
     @Test
@@ -582,7 +614,7 @@ class AnnotationConsumerRulesBehaviorTest {
         Index idx = index(nestedGenericFieldClass("res.R",
                 "jakarta.enterprise.inject.Provider", "jakarta.enterprise.inject.Instance", JWT_TYPE));
         AnalysisReport out = AnnotationConsumerRules.apply(report(suspect(SMALLRYE_JWT)),
-                idx, Set.of(SMALLRYE_JWT), Set.of(), NOWHERE);
+                idx, Set.of(SMALLRYE_JWT), Set.of(), NOWHERE, java.util.Map.of());
         assertThat(rowOf(out, SMALLRYE_JWT).verdict()).isEqualTo(Verdict.SUSPECT);
         assertThat(rowOf(out, SMALLRYE_JWT).note()).contains("near-miss (diagnostic)");
         assertThat(out.extensions().suspect()).isEqualTo(1);
@@ -594,7 +626,7 @@ class AnnotationConsumerRulesBehaviorTest {
         Index idx = index(
                 genericFieldClass("res.S", "jakarta.enterprise.inject.Instance", JWT_TYPE));
         AnalysisReport out = AnnotationConsumerRules.apply(report(suspect(SMALLRYE_JWT)),
-                idx, Set.of(SMALLRYE_JWT), Set.of(), NOWHERE);
+                idx, Set.of(SMALLRYE_JWT), Set.of(), NOWHERE, java.util.Map.of());
         assertThat(rowOf(out, SMALLRYE_JWT).verdict()).isEqualTo(Verdict.USED_BYTECODE);
         assertThat(rowOf(out, SMALLRYE_JWT).note()).doesNotContain("near-miss");
     }
@@ -602,7 +634,7 @@ class AnnotationConsumerRulesBehaviorTest {
     @Test
     void absentJwtEvidenceReportsNoNearMiss() throws IOException {
         AnalysisReport out = AnnotationConsumerRules.apply(report(suspect(SMALLRYE_JWT)),
-                STUB_ONLY_INDEX, Set.of(SMALLRYE_JWT), Set.of(), NOWHERE);
+                STUB_ONLY_INDEX, Set.of(SMALLRYE_JWT), Set.of(), NOWHERE, java.util.Map.of());
         String note = rowOf(out, SMALLRYE_JWT).note();
         assertThat(note == null || !note.contains("near-miss")).isTrue();
     }
@@ -614,7 +646,7 @@ class AnnotationConsumerRulesBehaviorTest {
         Index idx = STUB_ONLY_INDEX;
         AnalysisReport out = AnnotationConsumerRules.apply(
                 report(row(HIBERNATE_REACTIVE_PANACHE, Verdict.USED_BYTECODE), suspect(REACTIVE_PG)),
-                idx, Set.of(REACTIVE_PG), Set.of(), NOWHERE);
+                idx, Set.of(REACTIVE_PG), Set.of(), NOWHERE, java.util.Map.of());
         assertThat(rowOf(out, REACTIVE_PG).verdict()).isEqualTo(Verdict.USED_BYTECODE);
     }
 
@@ -624,7 +656,7 @@ class AnnotationConsumerRulesBehaviorTest {
         // the reactive client is load-bearing.
         Index idx = STUB_ONLY_INDEX;
         AnalysisReport out = AnnotationConsumerRules.apply(report(suspect(REACTIVE_PG)),
-                idx, Set.of(REACTIVE_PG), Set.of(), NOWHERE);
+                idx, Set.of(REACTIVE_PG), Set.of(), NOWHERE, java.util.Map.of());
         assertThat(rowOf(out, REACTIVE_PG).verdict()).isEqualTo(Verdict.SUSPECT);
     }
 
@@ -634,7 +666,7 @@ class AnnotationConsumerRulesBehaviorTest {
         AnalysisReport out = AnnotationConsumerRules.apply(
                 report(row(HIBERNATE_REACTIVE_PANACHE, Verdict.USED_BYTECODE),
                         suspect(REACTIVE_PG), suspect(REACTIVE_MYSQL)),
-                idx, Set.of(REACTIVE_PG, REACTIVE_MYSQL), Set.of("postgresql"), NOWHERE);
+                idx, Set.of(REACTIVE_PG, REACTIVE_MYSQL), Set.of("postgresql"), NOWHERE, java.util.Map.of());
         assertThat(rowOf(out, REACTIVE_PG).verdict()).isEqualTo(Verdict.USED_BYTECODE);
         assertThat(rowOf(out, REACTIVE_MYSQL).verdict()).isEqualTo(Verdict.SUSPECT);
     }
@@ -646,7 +678,7 @@ class AnnotationConsumerRulesBehaviorTest {
         AnalysisReport out = AnnotationConsumerRules.apply(
                 report(row(HIBERNATE_REACTIVE_PANACHE, Verdict.USED_BYTECODE),
                         suspect(REACTIVE_PG), suspect(REACTIVE_MYSQL)),
-                idx, Set.of(REACTIVE_PG, REACTIVE_MYSQL), Set.of(), NOWHERE);
+                idx, Set.of(REACTIVE_PG, REACTIVE_MYSQL), Set.of(), NOWHERE, java.util.Map.of());
         assertThat(rowOf(out, REACTIVE_PG).verdict()).isEqualTo(Verdict.SUSPECT);
         assertThat(rowOf(out, REACTIVE_MYSQL).verdict()).isEqualTo(Verdict.SUSPECT);
     }
@@ -662,7 +694,7 @@ class AnnotationConsumerRulesBehaviorTest {
                         List.of("io.quarkus:quarkus-hibernate-validator"))),
                 List.of("io.lib.Marker"));
         AnalysisReport out = AnnotationConsumerRules.apply(report(suspectWithHints), idx,
-                Set.of(REST_JACKSON), Set.of(), NOWHERE);
+                Set.of(REST_JACKSON), Set.of(), NOWHERE, java.util.Map.of());
         ExtensionReport flipped = out.dependencies().get(0);
         assertThat(flipped.verdict()).isEqualTo(Verdict.USED_BYTECODE);
         // Shared-jar hints are suspect-row-only evidence and must not survive the flip.
@@ -678,7 +710,7 @@ class AnnotationConsumerRulesBehaviorTest {
         Index idx = index(pathResource("res.P", rawRet(POJO)));
         AnalysisReport out = AnnotationConsumerRules.apply(
                 report(suspect(REST_JACKSON), suspect(HIBERNATE_VALIDATOR)),
-                idx, Set.of(REST_JACKSON, HIBERNATE_VALIDATOR), Set.of(), NOWHERE);
+                idx, Set.of(REST_JACKSON, HIBERNATE_VALIDATOR), Set.of(), NOWHERE, java.util.Map.of());
         // Exactly one row flips: the serializer (via REST-SERIALIZER). The validator stays
         // suspect (the index has no validation annotation), and the recomputed summaries must
         // reflect that split.
@@ -698,7 +730,7 @@ class AnnotationConsumerRulesBehaviorTest {
                 List.of("jakarta.persistence.jdbc.url"), Set.of(), List.of(), false, List.of(),
                 "config signal", null, null, List.of(), List.of());
         AnalysisReport out = AnnotationConsumerRules.apply(report(alreadyUsed), idx,
-                Set.of(RESTEASY_JACKSON), Set.of(), NOWHERE);
+                Set.of(RESTEASY_JACKSON), Set.of(), NOWHERE, java.util.Map.of());
         ExtensionReport untouched = rowOf(out, RESTEASY_JACKSON);
         assertThat(untouched.verdict()).isEqualTo(Verdict.USED_CONFIG);
         assertThat(untouched.note()).isEqualTo("config signal");
@@ -712,7 +744,7 @@ class AnnotationConsumerRulesBehaviorTest {
         Index idx = index(pathResource("res.R", rawRet(POJO)));
         AnalysisReport out = AnnotationConsumerRules.apply(
                 report(suspect(REST_JACKSON), plainJarSuspect("com.acme:plain-lib")),
-                idx, Set.of(REST_JACKSON), Set.of(), NOWHERE);
+                idx, Set.of(REST_JACKSON), Set.of(), NOWHERE, java.util.Map.of());
         assertThat(rowOf(out, "com.acme:plain-lib").verdict()).isEqualTo(Verdict.SUSPECT);
         assertThat(out.extensions().usedBytecode()).isEqualTo(1);
         assertThat(out.plainJars().suspect()).isEqualTo(1);
@@ -837,7 +869,7 @@ class AnnotationConsumerRulesBehaviorTest {
         AnalysisReport out = AnnotationConsumerRules.apply(
                 report(row(HIBERNATE_REACTIVE_PANACHE, Verdict.USED_BYTECODE),
                         row(REACTIVE_MYSQL, Verdict.USED_BYTECODE), suspect(REACTIVE_PG)),
-                idx, Set.of(REACTIVE_PG, REACTIVE_MYSQL), Set.of(), NOWHERE);
+                idx, Set.of(REACTIVE_PG, REACTIVE_MYSQL), Set.of(), NOWHERE, java.util.Map.of());
         assertThat(rowOf(out, REACTIVE_PG).verdict()).isEqualTo(Verdict.SUSPECT);
     }
 
@@ -847,7 +879,7 @@ class AnnotationConsumerRulesBehaviorTest {
         AnalysisReport out = AnnotationConsumerRules.apply(
                 report(row(HIBERNATE_REACTIVE_PANACHE, Verdict.USED_BYTECODE),
                         suspect(REACTIVE_PG), suspect(REACTIVE_MYSQL)),
-                idx, Set.of(REACTIVE_PG, REACTIVE_MYSQL), Set.of("PostgreSQL"), NOWHERE);
+                idx, Set.of(REACTIVE_PG, REACTIVE_MYSQL), Set.of("PostgreSQL"), NOWHERE, java.util.Map.of());
         assertThat(rowOf(out, REACTIVE_PG).verdict()).isEqualTo(Verdict.USED_BYTECODE);
         assertThat(rowOf(out, REACTIVE_MYSQL).verdict()).isEqualTo(Verdict.SUSPECT);
     }
@@ -857,7 +889,7 @@ class AnnotationConsumerRulesBehaviorTest {
         Index idx = index();
         AnalysisReport out = AnnotationConsumerRules.apply(
                 report(row(HIBERNATE_REACTIVE, Verdict.USED_BYTECODE), suspect(REACTIVE_PG)),
-                idx, Set.of(REACTIVE_PG), Set.of(), NOWHERE);
+                idx, Set.of(REACTIVE_PG), Set.of(), NOWHERE, java.util.Map.of());
         assertThat(rowOf(out, REACTIVE_PG).verdict()).isEqualTo(Verdict.USED_BYTECODE);
     }
 
@@ -869,7 +901,7 @@ class AnnotationConsumerRulesBehaviorTest {
         AnalysisReport out = AnnotationConsumerRules.apply(
                 report(row(HIBERNATE_REACTIVE_PANACHE, Verdict.USED_BYTECODE),
                         suspect(REACTIVE_PG), suspect(REACTIVE_MYSQL)),
-                idx, Set.of(REACTIVE_PG, REACTIVE_MYSQL), Set.of("mariadb"), NOWHERE);
+                idx, Set.of(REACTIVE_PG, REACTIVE_MYSQL), Set.of("mariadb"), NOWHERE, java.util.Map.of());
         assertThat(rowOf(out, REACTIVE_MYSQL).verdict()).isEqualTo(Verdict.USED_BYTECODE);
         assertThat(rowOf(out, REACTIVE_PG).verdict()).isEqualTo(Verdict.SUSPECT);
     }
@@ -892,7 +924,7 @@ class AnnotationConsumerRulesBehaviorTest {
         Files.createDirectories(resources("application.yml", moduleRoot).getParent());
         Files.writeString(resources("application.yml", moduleRoot), "quarkus: {}\n");
         AnalysisReport out = AnnotationConsumerRules.apply(report(suspect(CONFIG_YAML)),
-                STUB_ONLY_INDEX, Set.of(CONFIG_YAML), Set.of(), moduleRoot);
+                STUB_ONLY_INDEX, Set.of(CONFIG_YAML), Set.of(), moduleRoot, java.util.Map.of());
         assertThat(rowOf(out, CONFIG_YAML).verdict()).isEqualTo(Verdict.USED_BYTECODE);
     }
 
@@ -901,7 +933,7 @@ class AnnotationConsumerRulesBehaviorTest {
         Files.createDirectories(classes("application.yaml", moduleRoot).getParent());
         Files.writeString(classes("application.yaml", moduleRoot), "quarkus: {}\n");
         AnalysisReport out = AnnotationConsumerRules.apply(report(suspect(CONFIG_YAML)),
-                STUB_ONLY_INDEX, Set.of(CONFIG_YAML), Set.of(), moduleRoot);
+                STUB_ONLY_INDEX, Set.of(CONFIG_YAML), Set.of(), moduleRoot, java.util.Map.of());
         assertThat(rowOf(out, CONFIG_YAML).verdict()).isEqualTo(Verdict.USED_BYTECODE);
     }
 
@@ -915,14 +947,14 @@ class AnnotationConsumerRulesBehaviorTest {
         Files.createDirectories(resources("application.yml", reactorRoot).getParent());
         Files.writeString(resources("application.yml", reactorRoot), "quarkus: {}\n");
         AnalysisReport out = AnnotationConsumerRules.apply(report(suspect(CONFIG_YAML)),
-                STUB_ONLY_INDEX, Set.of(CONFIG_YAML), Set.of(), otherModule);
+                STUB_ONLY_INDEX, Set.of(CONFIG_YAML), Set.of(), otherModule, java.util.Map.of());
         assertThat(rowOf(out, CONFIG_YAML).verdict()).isEqualTo(Verdict.SUSPECT);
     }
 
     @Test
     void noYamlAnywhereLeavesConfigYamlSuspect(@TempDir Path moduleRoot) throws IOException {
         AnalysisReport out = AnnotationConsumerRules.apply(report(suspect(CONFIG_YAML)),
-                STUB_ONLY_INDEX, Set.of(CONFIG_YAML), Set.of(), moduleRoot);
+                STUB_ONLY_INDEX, Set.of(CONFIG_YAML), Set.of(), moduleRoot, java.util.Map.of());
         assertThat(rowOf(out, CONFIG_YAML).verdict()).isEqualTo(Verdict.SUSPECT);
     }
 

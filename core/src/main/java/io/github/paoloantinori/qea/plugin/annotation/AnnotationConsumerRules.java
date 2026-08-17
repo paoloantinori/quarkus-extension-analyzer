@@ -118,9 +118,19 @@ public final class AnnotationConsumerRules {
      *                   a CWD-relative probe inspected the wrong module's resources). The empty
      *                   path ({@code Path.of("")}) preserves the legacy CWD-relative behavior for
      *                   callers that cannot derive a root.
+     * @param deploymentConsumersByGa TASK-38 note-enrichment input (may be empty): suspect GA to
+     *                   the extension whose DEPLOYMENT artifact directly declares the suspect's
+     *                   -deployment artifact. Derived by each shell from the ApplicationModel (the
+     *                   derivation needs bootstrap types core must not depend on); the verdict is
+     *                   NOT changed - the row keeps its suspect verdict with its per-module
+     *                   meaning (the declaration is redundant HERE) and the note explains the
+     *                   extension is nonetheless load-bearing for the app. Superseded in intent by
+     *                   the TASK-39 app-scope verdict; this is the cheap, semantics-preserving
+     *                   closure of the Keycloak shape.
      */
     public static AnalysisReport apply(AnalysisReport report, IndexView index,
-            Set<String> declaredExtensionGas, Set<String> dbKindValues, java.nio.file.Path projectRoot) {
+            Set<String> declaredExtensionGas, Set<String> dbKindValues, java.nio.file.Path projectRoot,
+            Map<String, String> deploymentConsumersByGa) {
         // Collect which annotation prefixes are present in the index.
         Set<String> presentAnnotationPrefixes = new java.util.TreeSet<>();
         Set<String> distinctPrefixes = new java.util.LinkedHashSet<>();
@@ -141,8 +151,12 @@ public final class AnnotationConsumerRules {
         }
 
         if (presentAnnotationPrefixes.isEmpty()) {
-            // No annotation family matched; the reactive-driver join may still resolve.
+            // No annotation family matched; the reactive-driver join and the deployment-consumer
+            // credits may still resolve.
             Map<String, String> joinOnly = reactiveDriverJoin(report, dbKindValues);
+            for (Map.Entry<String, String> e : deploymentConsumersByGa.entrySet()) {
+                joinOnly.putIfAbsent(e.getKey(), deploymentConsumerEvidence(e.getValue()));
+            }
             AnalysisReport out = joinOnly.isEmpty() ? report : flipSuspects(report, joinOnly);
             return annotateNearMisses(out, index, declaredExtensionGas, presentAnnotationPrefixes);
         }
@@ -164,10 +178,34 @@ public final class AnnotationConsumerRules {
         // TASK-22 reactive-driver join (may add credits even when no annotation rule fired).
         resolvedByGa.putAll(reactiveDriverJoin(report, dbKindValues));
 
+        // TASK-38 deployment-consumer credits. Empirically REVERSED from note-enrichment: the
+        // Keycloak ablation showed the declaration is REQUIRED, not redundant - Quarkus's
+        // extension-descriptor plugin fails the build when a -deployment artifact's runtime
+        // counterpart is not among the runtime deps ("...depends on the following Quarkus
+        // extension deployment artifacts whose corresponding runtime artifacts were not found").
+        // So a suspect consumed by another extension's deployment tree is load-bearing as a
+        // DECLARATION and must credit.
+        for (Map.Entry<String, String> e : deploymentConsumersByGa.entrySet()) {
+            resolvedByGa.putIfAbsent(e.getKey(), deploymentConsumerEvidence(e.getValue()));
+        }
+
         AnalysisReport credited = resolvedByGa.isEmpty()
                 ? report
                 : flipSuspects(report, resolvedByGa);
-        return annotateNearMisses(credited, index, declaredExtensionGas, presentAnnotationPrefixes);
+        credited = annotateNearMisses(credited, index, declaredExtensionGas, presentAnnotationPrefixes);
+        return credited;
+    }
+
+    /**
+     * TASK-38: deployment-consumer credits. See apply(): a suspect whose -deployment artifact is
+     * directly declared by another extension's -deployment artifact is a REQUIRED declaration
+     * (the Quarkus extension descriptor fails the build without its runtime counterpart), so the
+     * evidence string is added to the credits map rather than a note-only enrichment.
+     */
+    private static String deploymentConsumerEvidence(String consumerGa) {
+        return "deployment-consumer: required by " + consumerGa
+                + "'s deployment tree (the extension descriptor enforces the runtime counterpart's"
+                + " declaration; removal fails the build)";
     }
 
     /**

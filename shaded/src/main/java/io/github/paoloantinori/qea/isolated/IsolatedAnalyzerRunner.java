@@ -126,6 +126,8 @@ public final class IsolatedAnalyzerRunner {
      */
     static AnalysisReport applyAnnotationConsumers(ApplicationModel model, MavenProject project,
             AppConfigReader appConfig, AnalysisReport report) throws IOException {
+        // TASK-38: mirrors the extension adapter's AnnotationAttribution.collectDeploymentConsumers
+        // (bootstrap types keep the derivation out of core); pinned by this module's runner test.
         org.jboss.jandex.Index appIndex = io.github.paoloantinori.qea.plugin.bytecode.BytecodeUsage
                 .indexClasses(List.of(Paths.get(project.getBuild().getOutputDirectory())));
         // Mirrors the extension adapter's AnnotationAttribution.collectDeclaredExtensionGas
@@ -137,11 +139,29 @@ public final class IsolatedAnalyzerRunner {
                 declaredExtensionGas.add(d.getGroupId() + ":" + d.getArtifactId());
             }
         }
+        // TASK-38: suspect GA -> consuming extension (its -deployment directly declares the
+        // suspect's -deployment). Direct declarations only: getDependencies() is the artifact's own
+        // POM list, so transitively pulled -deployment artifacts are not misattributed.
+        java.util.Map<String, String> deploymentConsumers = new java.util.LinkedHashMap<>();
+        for (io.quarkus.maven.dependency.ResolvedDependency d : model.getDependencies()) {
+            if (!d.isDeploymentCp() || !d.getArtifactId().endsWith("-deployment")) {
+                continue;
+            }
+            String consumerGa = d.getGroupId() + ":"
+                    + d.getArtifactId().substring(0, d.getArtifactId().length() - "-deployment".length());
+            for (io.quarkus.maven.dependency.ArtifactCoords dep : d.getDependencies()) {
+                if (dep.getArtifactId().endsWith("-deployment")) {
+                    String consumedGa = dep.getGroupId() + ":" + dep.getArtifactId()
+                            .substring(0, dep.getArtifactId().length() - "-deployment".length());
+                    deploymentConsumers.putIfAbsent(consumedGa, consumerGa);
+                }
+            }
+        }
         return io.github.paoloantinori.qea.plugin.annotation.AnnotationConsumerRules.apply(report,
                 appIndex != null ? appIndex : new org.jboss.jandex.Indexer().complete(),
                 declaredExtensionGas,
                 io.github.paoloantinori.qea.plugin.annotation.AnnotationConsumerRules.dbKindValues(appConfig),
-                project.getBasedir().toPath());
+                project.getBasedir().toPath(), deploymentConsumers);
     }
 
     private static ApplicationModel resolveModel(MavenSession session, MavenProject project,
