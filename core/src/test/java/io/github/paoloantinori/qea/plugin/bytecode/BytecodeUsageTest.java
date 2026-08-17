@@ -95,6 +95,32 @@ class BytecodeUsageTest {
             "package com.example;\n" +
             "public record FightRequest(@RecordMarker String name) {}\n";
 
+    private static final String EVENT_MARKER =
+            "package com.example;\n" +
+            "import java.lang.annotation.ElementType;\n" +
+            "import java.lang.annotation.Retention;\n" +
+            "import java.lang.annotation.RetentionPolicy;\n" +
+            "import java.lang.annotation.Target;\n" +
+            "@Target({ElementType.TYPE, ElementType.PARAMETER})\n" +
+            "@Retention(RetentionPolicy.RUNTIME)\n" +
+            "public @interface EventMarker {\n" +
+            "    Class<?> payload();\n" +
+            "    String name() default \"\";\n" +
+            "}\n";
+
+    private static final String MEMBER_ONLY =
+            "package com.example;\n" +
+            "public class MemberOnly {}\n";
+
+    // References MemberOnly ONLY through a CLASS-valued annotation member (the quarkus-github-app
+    // events shape: @Event(payload = GHEventPayload.IssueComment.class) is the sole reference to
+    // the GitHub API library; before the fix the walk collected annotation NAMES only, so the
+    // transitive jar was invisible to the bytecode signal and the extension stayed suspect).
+    private static final String EVENT_BINDING =
+            "package com.example;\n" +
+            "@EventMarker(name = \"issue_comment\", payload = MemberOnly.class)\n" +
+            "public class EventBinding {}\n";
+
     @Test
     void memberAnnotationsAndFieldTypesAreCaptured(@TempDir Path tempDir) throws IOException {
         Path srcDir = Files.createDirectories(tempDir.resolve("src"));
@@ -105,6 +131,9 @@ class BytecodeUsageTest {
                 writeSource(srcDir, "com.example.ParamMarker", PARAM_MARKER),
                 writeSource(srcDir, "com.example.Payload", PAYLOAD),
                 writeSource(srcDir, "com.example.Sample", SAMPLE),
+                writeSource(srcDir, "com.example.EventMarker", EVENT_MARKER),
+                writeSource(srcDir, "com.example.MemberOnly", MEMBER_ONLY),
+                writeSource(srcDir, "com.example.EventBinding", EVENT_BINDING),
                 writeSource(srcDir, "com.example.FightRequest", FIGHT_REQUEST)).stream()
                 .map(Path::toFile).toList();
 
@@ -133,6 +162,10 @@ class BytecodeUsageTest {
         // (4) Sanity: a type referenced only as a field TYPE (not an annotation) is still captured by the
         //     existing ci.fields() extraction loop, which is unchanged by TASK-12.
         assertThat(referenced).contains("com.example.Payload");
+        // (5) CLASS-valued annotation member: MemberOnly appears ONLY as
+        //     @EventMarker(payload = MemberOnly.class); before the annotation-member fix this shape was
+        //     invisible (TASK-36, the quarkus-github-app events shape).
+        assertThat(referenced).contains("com.example.MemberOnly");
     }
 
     @Test

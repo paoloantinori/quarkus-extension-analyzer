@@ -20,6 +20,7 @@ import org.apache.maven.shared.dependency.analyzer.DefaultClassAnalyzer;
 import org.apache.maven.shared.dependency.analyzer.DependencyAnalyzer;
 import org.apache.maven.shared.dependency.analyzer.asm.ASMDependencyAnalyzer;
 import org.jboss.jandex.AnnotationInstance;
+import org.jboss.jandex.AnnotationValue;
 import org.jboss.jandex.ClassInfo;
 import org.jboss.jandex.DotName;
 import org.jboss.jandex.FieldInfo;
@@ -128,14 +129,65 @@ public final class BytecodeUsage {
             }
             for (AnnotationInstance ai : ci.annotations()) {
                 addName(referenced, ai.name());
+                addAnnotationMemberTypes(referenced, ai.values());
             }
         }
         return referenced;
     }
 
-    /** The set of classes physically contained in a jar (or classes directory), for membership checks. */
+    /**
+     * Types referenced by CLASS-valued annotation members ({@code @Event(payload = Foo.class)}),
+     * recursively through nested annotations and arrays. Found on quarkus-github-app-events: the
+     * module references the GitHub API library ONLY through an annotation member, so the walk that
+     * collected annotation names only saw nothing and the extension stayed suspect (a false
+     * negative on a notable production project, found by the TASK-36 bench expansion).
+     */
+    private static void addAnnotationMemberTypes(Set<String> referenced, List<AnnotationValue> values) {
+        for (AnnotationValue v : values) {
+            switch (v.kind()) {
+                case CLASS -> addName(referenced, v.asClass().name());
+                case NESTED -> addAnnotationMemberTypes(referenced, v.asNested().values());
+                case ARRAY -> addAnnotationMemberTypes(referenced, v.asArrayList());
+                default -> { }
+            }
+        }
+    }
+
+    /**
+     * The set of classes physically contained in a jar (or classes directory), for membership
+     * checks. Enumerates the archive entries directly: the ASM analyzer from
+     * maven-dependency-analyzer that lived here returned TOP-LEVEL classes only (259 of the
+     * github-api jar's 548), so a project referencing only a nested type
+     * ({@code GHEventPayload$IssueComment}, the quarkus-github-app events shape) never matched its
+     * own dependency's contents and the extension stayed suspect (TASK-36).
+     */
     public static Set<String> containedClasses(Path artifact) throws IOException {
-        return new DefaultClassAnalyzer().analyze(toUrl(artifact), new ClassesPatterns());
+        Set<String> names = new TreeSet<>();
+        boolean isJar = artifact.toString().endsWith(".jar");
+        if (isJar) {
+            try (java.util.zip.ZipInputStream zip =
+                    new java.util.zip.ZipInputStream(Files.newInputStream(artifact))) {
+                for (java.util.zip.ZipEntry e; (e = zip.getNextEntry()) != null; ) {
+                    addEntryClassName(names, e.getName());
+                }
+            }
+            return names;
+        }
+        // A classes directory: walk it like the index builder does.
+        try (var walk = Files.walk(artifact)) {
+            walk.filter(p -> p.toString().endsWith(".class"))
+                    .forEach(p -> addEntryClassName(names,
+                            artifact.relativize(p).toString().replace('/', '.')));
+        }
+        return names;
+    }
+
+    private static void addEntryClassName(Set<String> out, String entry) {
+        if (!entry.endsWith(".class")) {
+            return;
+        }
+        String cn = entry.substring(0, entry.length() - ".class".length()).replace('/', '.');
+        out.add(cn);
     }
 
     /**

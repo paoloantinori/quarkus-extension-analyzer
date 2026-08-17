@@ -154,6 +154,10 @@ public final class Analyzer {
         // Extension jars were already Jandexed while probing signal 1 (ConfigRootProbe.Probe#containedClasses),
         // so no second jar scan is needed here for them; only plain jars still need one, run concurrently below.
         Set<String> jandexReferenced = BytecodeUsage.referencedTypesViaJandex(classesDirs);
+        if (debugAttributionLog != null) {
+            debugAttributionLog.accept("[qea-debug] jandexReferenced size=" + jandexReferenced.size()
+                    + " classesDirs=" + classesDirs);
+        }
         Set<String> asmReferenced = BytecodeUsage.referencedClassesViaAsm(classesDirs);
         Map<String, Boolean> bytecodeUsedByGa = new HashMap<>();
         for (ResolvedDependency d : allExtensions) {

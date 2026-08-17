@@ -1238,3 +1238,51 @@ the shallow clone: missing utils-tests module artifacts; recorded), so its
 two ablations used build/augmentation failure as the oracle - which is
 conclusive for both (CDI validation and compilation respectively).
 All bench poms verified restored byte-identical.
+
+### Work unit 36, 2026-08-17, Bench expansion on notable GitHub projects: TWO more shape bugs
+
+Ran the checker on new, notable, never-tuned codebases (the first live test
+of the defenses on foreign ground):
+
+1. quarkiverse/quarkus-github-app (the production bot framework),
+   events module @ 7ce8727: FIRST RUN FOUND A REAL FALSE NEGATIVE.
+   quarkus-github-api stayed suspect although the module uses it
+   everywhere. Root-caused through a two-layer dig:
+   (a) The app references org.kohsuke.github.GHEventPayload$Xxx ONLY
+       through CLASS-valued annotation members
+       (@Event(payload = GHEventPayload.IssueComment.class)); the
+       referenced-types walk collected annotation NAMES only. Fixed:
+       the walk now recurses into CLASS/NESTED/ARRAY annotation member
+       values (Jandex AnnotationValue). Pinned by a javac-compiled
+       fixture in BytecodeUsageTest + an assumption-guarded probe
+       (EventsProbeTest) against the real bench module.
+   (b) That alone did NOT flip the verdict: the containment side
+       (containedClasses, the ASM analyzer from maven-dependency-
+       analyzer) returned TOP-LEVEL classes ONLY - 259 of github-api's
+       548 - so a nested-only reference never matched its own jar's
+       contents. Fixed: containedClasses now enumerates archive entries
+       directly (548/548, nested included), which is what its own
+       javadoc always claimed ("classes physically contained").
+   Post-fix on the real module: quarkus-github-api -> used-bytecode,
+   "referenced via transitive API of org.kohsuke:github-api"; suspects
+   2 -> 1 (quarkus-arc remains, correctly: the redundant explicit CDI
+   core declaration is genuinely removable). Bench snapshot after the
+   containment change (it feeds the whole bytecode signal): zero drift
+   on all six pinned apps.
+2. apache/camel-quarkus @ 3.38.0 (IT modules, shallow release-tag
+   clone; the main workspace is SNAPSHOT-locked and needs its own
+   reactor). validator IT: 2 of 3 extensions suspect - the DOCUMENTED
+   blind spot, not a bug: camel components are used via DSL strings on
+   a shared core (RouteBuilder/ProducerTemplate are transitive of every
+   camel extension, so exclusive attribution correctly refuses); an
+   ablation would prove them load-bearing. Recorded as a known
+   limitation of the same family as runtime-only extensions. A camel
+   annotation-consumer rule would need payload-string analysis, out of
+   current scope.
+3. Keycloak evaluated as the flagship candidate (30k stars, Quarkus
+   distribution): the quarkus server module needs its own reactor
+   build; deferred with the cost documented.
+
+Verification: full reactor 170 tests green; bench snapshot zero drift;
+events module fix verified end-to-end (before: suspect; after:
+used-bytecode with evidence).
