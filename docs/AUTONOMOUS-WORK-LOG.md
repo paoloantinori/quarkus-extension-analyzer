@@ -1345,3 +1345,17 @@ other apps unchanged (verified zero drift before the refresh).
 
 Keycloak ablation pom restored byte-identical. Full reactor 176 tests
 green (165 core + 4 runner + 2 IT + 5 adapter).
+
+### Work unit 39, 2026-08-17, TASK-39 opened: the module-scope delta table (first two rows)
+
+Empirical confirmation of the app-scope principle on Keycloak 26.7.0: the
+same project analyzed from two module scopes gives different (both honest)
+answers. quarkus/runtime (extension module): 22 extensions, 4 suspects -
+the remaining 4 are consumed by the module's OWN deployment sibling
+(quarkus/deployment), which no dependency model can see from the runtime
+side (deployment depends on runtime, never vice versa). quarkus/server
+(the app module, declaring both runtime and deployment): 2 extensions,
+1 suspect - the full deployment tree is visible and deployment-consumer
+credits with the keycloak-server edge. Structural finding recorded in
+TASK-39 with the two candidate resolutions (document-the-scope vs
+workspace-sibling POM scan); the delta table AC has its first rows.

@@ -17,6 +17,15 @@ ordinal: 30000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
+EMPIRICAL DELTA TABLE STARTED 2026-08-17 (TASK-38 follow-up) - Keycloak 26.7.0, same project, two module scopes:
+
+| Scope | Extensions | Suspects | Notes |
+|---|---|---|---|
+| quarkus/runtime (extension module) | 22 | 4 | TASK-38 credits 2 via quarkus-internal deployment edges; the other 4 are consumed by the module's OWN deployment sibling (quarkus/deployment), invisible from the runtime side in ANY dependency model (the deployment depends on the runtime, not vice versa) |
+| quarkus/server (app module, declares both runtime + deployment) | 2 | 1 | the full deployment tree is visible; deployment-consumer credits with the keycloak-server edge |
+
+Structural finding: the "own deployment sibling" shape (an extension module analyzed standalone) can never see its own -deployment's declarations via the resolved model. Two resolutions, both within this task: (a) DOCUMENT that the right analysis point is the app module (cheap, no code); (b) the workspace-sibling POM scan (the mojo already loads the workspace via LocalProject.loadWorkspace - a sibling *-deployment/pom.xml is discoverable) to credit from the extension module too. Decide during implementation; (a) may be sufficient for v1 with (b) as an opt-in.
+
 Rung 2 of the "total detection" ladder (design discussion 2026-08-17, user-approved): change the verdict's scope from per-module to per-application, keeping the per-module dimension as evidence instead of compromise.
 
 Core semantic shift: the verdict answers "removable from the APPLICATION?" (what the user actually asks), and the note says WHERE the use lives ("referenced from keycloak-quarkus-server classes", "required by Y's deployment tree", "no use found anywhere in the app closure"). This subsumes the Keycloak shape and the note-enrichment dilemma: both dimensions, each in its right scope.
