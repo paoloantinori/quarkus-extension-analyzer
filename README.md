@@ -4,13 +4,18 @@ Dependency-usage analysis that understands Quarkus.
 
 **Status:** M1 (spike), M2 (the `analyze` mojo), M3 (ignore-list interop), and
 M4 (Quarkiverse evaluation) are done. M5 (the Quarkus build-time extension form)
-is a working prototype: it shares a common core library with the mojo and
-resolves annotation-consumer false positives in both forms (the engine lives in core; TASK-28), by
-reading ArC's bean index during augmentation. Both forms are validated on two
-benches (Apicurio Registry and Quarkus super-heroes); see
-[docs/M2-VALIDATION.md](docs/M2-VALIDATION.md), [docs/SECOND-BENCH.md](docs/SECOND-BENCH.md),
-and [docs/AUTONOMOUS-WORK-LOG.md](docs/AUTONOMOUS-WORK-LOG.md). See
-[docs/DESIGN.md](docs/DESIGN.md) for the full architecture.
+ships alongside the mojo: both forms run the same core engine, including the
+annotation-consumer rules that resolve Quarkus-specific false positives
+(TASK-28). The forms differ only in the index they feed the engine: the
+extension passes ArC's bean index from inside augmentation; the mojo builds one
+over the module's compiled classes. Validated on the Quarkus super-heroes suite
+and the official quickstarts (see the bench section in
+[docs/EXTENSION-USAGE.md](docs/EXTENSION-USAGE.md) for the current numbers and
+the workspace caveat), plus the historical benches in
+[docs/M2-VALIDATION.md](docs/M2-VALIDATION.md) and
+[docs/SECOND-BENCH.md](docs/SECOND-BENCH.md). Every work unit's decisions and
+evidence are in [docs/AUTONOMOUS-WORK-LOG.md](docs/AUTONOMOUS-WORK-LOG.md);
+[docs/DESIGN.md](docs/DESIGN.md) is the original 2026-08-01 design draft.
 
 ## The problem
 
@@ -46,10 +51,21 @@ three signals that together approximate what augmentation actually does:
 3. **Capability requirement**: another used extension requires a capability
    this extension provides (from the Quarkus bootstrap `ApplicationModel`).
 
-An extension flagged by none of the three signals is reported as *suspect*,
-with the evidence trail. Output is report-only, plus a generated ignore-list
-fragment compatible with `maven-dependency-plugin` and DepClean, so the tool
-composes with the existing ecosystem instead of replacing it.
+On top of the three signals, a curated **annotation-consumer** rules pass runs
+in both forms (TASK-28): a Jandex index over the app's classes says which
+annotation families the app actually uses (`@NotNull`, `@Scheduled`,
+`@Path` endpoints returning POJOs, a shipped `application.yml`, ...), and the
+rules table credits the extension that processes each family. This is what
+closes the false positives no bytecode scan can see: the annotation types live
+in shared jars, and serializers or build-step-generated implementations leave
+no compile-time reference at all. A dependency-join rule also credits the
+reactive SQL client that a used Hibernate Reactive setup requires (selected by
+`db-kind` when several are declared).
+
+An extension flagged by none of the signals (nor the rules pass) is reported
+as *suspect*, with the evidence trail. Output is report-only, plus a generated
+ignore-list fragment compatible with `maven-dependency-plugin` and DepClean, so
+the tool composes with the existing ecosystem instead of replacing it.
 
 ## Why this doesn't exist yet
 
@@ -98,13 +114,16 @@ the natural long-term home is [Quarkiverse](https://github.com/quarkiverse).
   ship standalone (Maven Central), since Quarkiverse hosts Quarkus extensions,
   not Maven plugins. A build-time-extension form (M5) is a deferred option. See
   [docs/M4-QUARKIVERSE-EVAL.md](docs/M4-QUARKIVERSE-EVAL.md).
-- **M5, extension form** -- done (prototype). A Quarkus build-time extension that
-  runs the same analysis inside augmentation, reading ArC's bean index to resolve
-  annotation-consumer false positives the standalone mojo cannot. On Apicurio
-  `app`: extension suspects 5 -> **1**. On rest-fights: hibernate-validator
-  resolved (the case headline the mojo cannot close without weakening its
-  exclusivity invariant). The two forms (mojo + extension) share a common core
-  library. See [docs/REARCH-PLAN.md](docs/REARCH-PLAN.md) and
+- **M5, extension form** -- done. A Quarkus build-time extension that runs the
+  same analysis inside augmentation. Since TASK-28 the rules engine lives in
+  core and both forms run it: the extension feeds it ArC's bean index, the mojo
+  feeds it an index over the compiled classes. On the super-heroes bench the
+  mojo form went from 5 to 2 extension suspects on rest-heroes (the two
+  remaining are runtime-only extensions no compile-time signal can see), and
+  hibernate-validator on rest-fights, the headline case neither form could
+  close before the curated rules, is now credited in both. See
+  [docs/REARCH-PLAN.md](docs/REARCH-PLAN.md),
+  [docs/EXTENSION-USAGE.md](docs/EXTENSION-USAGE.md), and
   [docs/AUTONOMOUS-WORK-LOG.md](docs/AUTONOMOUS-WORK-LOG.md).
 
 ## Usage
@@ -128,6 +147,34 @@ bytecode signal needs `target/classes` to exist). Useful flags:
 
 See [docs/M2-VALIDATION.md](docs/M2-VALIDATION.md) for a real run against the
 Apicurio Registry bench.
+
+### Extension form (inside augmentation)
+
+Add the extension to your Quarkus application module and build normally; the
+report is printed to the build log, and `quarkus.extension-analyzer.fail-on-suspect`
+can fail the build on suspects:
+
+```xml
+<dependency>
+  <groupId>io.github.paoloantinori</groupId>
+  <artifactId>quarkus-extension-analyzer</artifactId>
+  <version>1.0-SNAPSHOT</version>
+</dependency>
+```
+
+Details, the rules table, and the current bench numbers:
+[docs/EXTENSION-USAGE.md](docs/EXTENSION-USAGE.md).
+
+## Development
+
+```bash
+mvn clean install          # full reactor: core, shaded, plugin, extension, extension-deployment
+```
+
+The test suite includes a failsafe IT on the shaded artifact (it must run
+after shade). Repo conventions, the test-suite map, and the hard-won
+invariants (phantom-name discipline, shade relocation rules, bench workspace
+state) live in [CLAUDE.md](CLAUDE.md).
 
 ## License
 

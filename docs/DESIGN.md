@@ -1,7 +1,12 @@
 # Design
 
-Status: draft, 2026-08-01. Nothing below is implemented yet; M1 exists to
-falsify the risky assumptions, which are individually marked.
+Status: draft, 2026-08-01 (historical). Nothing below was implemented yet at
+the time of writing; M1 existed to falsify the risky assumptions, which are
+individually marked. Kept as the original design record. The architecture as
+actually shipped (multi-module: core, shaded, plugin, extension,
+extension-deployment; the annotation-consumer engine in core) is described in
+[REARCH-PLAN.md](REARCH-PLAN.md) and [EXTENSION-USAGE.md](EXTENSION-USAGE.md);
+the full decision trail is [AUTONOMOUS-WORK-LOG.md](AUTONOMOUS-WORK-LOG.md).
 
 ## Goal
 

@@ -1018,3 +1018,36 @@ session start), 5 phantom-name bugs found and fixed (RegisterRestClient
 FQCN, smallrye FT probe pair, mariadb reactive GA, the shade-plugin literal
 mangling class), 1 architecture change (engine to core, two shells), 1 bench
 workspace root-caused as damaged and re-established on a fresh clone.
+
+### Work unit 28, 2026-08-17, Documentation verification pass (README + CLAUDE.md)
+
+Full documentation sweep against the post-TASK-28 code state. Found that two
+of the three README fixes from unit 25 had silently failed (python replace on
+multi-line strings that did not match): the "standalone mojo cannot" and
+"case headline" claims were still live. Fixed for real this time via exact
+Edit matches, then verified by grep that no stale claim remains.
+
+README: status paragraph rewritten (both forms production, shared core
+engine, index-scope as the only difference, current bench pointers with the
+workspace caveat); the idea section now describes the annotation-consumer
+rules pass and the reactive-driver join as the layer above the three
+signals; M5 roadmap entry refreshed with post-TASK-28 numbers; usage gained
+the extension-form snippet and a Development section.
+
+DESIGN.md: marked as the superseded 2026-08-01 draft with pointers to the
+shipped architecture (REARCH-PLAN, EXTENSION-USAGE).
+
+New CLAUDE.md (project-level, first): doc map, module map and build, the
+test-suite map, and the four hard invariants (no phantom names with the
+5-bug history and the independent-test-literals rule; the shade-relocation
+trailing-dot rule and its IT pin; one-engine-two-shells with the pinned
+duplicated declared-GA derivation; main-classes index scope), the bench
+workspace state with the backup-first/anchor-after-dependencyManagement
+procedure, and the working conventions (backlog DoD, append-only log,
+no-em-dash, evidence-before-assertion with the ConfigRootProbe
+comparability break called out).
+
+Claims verified against ground truth before writing: 52-test behavioral
+suite (counted and re-run green), module list from the root pom, mojo flags
+from the @Parameter properties, extension coordinates from extension/pom.xml,
+quarkus.version 3.33.2.1 from the root pom, zero em-dashes in new prose.
