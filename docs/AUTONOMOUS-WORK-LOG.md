@@ -1207,3 +1207,34 @@ confirming the reversed ground truth from TASK-30.
 
 The task also refreshed the TODO state: TASK-33's backlog marking was
 blocked by the same outage and is recorded in unit 33's summary here.
+
+### Work unit 35, 2026-08-17, TASK-35: credit audit (the symmetric direction)
+
+The ablation bench had only ever verified the SUSPECT direction; this audit
+ablated CREDITED rows to verify the rules do not over-credit. Sample and
+outcomes:
+
+1. Apicurio quarkus-smallrye-jwt (credited via the Instance<Jwt> fix):
+   ablation fails at AUGMENTATION - UnsatisfiedResolutionException for
+   DefaultJWTParser injected in AppAuthenticationMechanism. Load-bearing,
+   proven.
+2. Apicurio quarkus-scheduler (credited via the @Scheduled rule): ablation
+   fails at COMPILATION - package io.quarkus.scheduler does not exist
+   (GitOpsRegistryStorage, GitOpsValidationTaskManager import @Scheduled).
+   Load-bearing, proven.
+3. cache-quickstart quarkus-rest-jackson (credited via REST-SERIALIZER),
+   with the STRONG oracle both directions: ablated, mvn verify FAILS with
+   "Response body doesn't match expectation" (the POJO forecast endpoint
+   has no serializer); restored, verify GREEN (1/1 tests). Load-bearing,
+   proven.
+4. rest-qute (native Templates), config-yaml (config unreadable), and
+   quarkus-rest (endpoints vanish) families: already ablation-proven
+   (ABLATION-BENCH.md), cited rather than repeated.
+
+Verdict: ZERO over-credits in the audited sample; every rule that fired on
+the benches credits a genuinely load-bearing extension. The Apicurio app's
+own test suite was not usable as an oracle (test code does not compile on
+the shallow clone: missing utils-tests module artifacts; recorded), so its
+two ablations used build/augmentation failure as the oracle - which is
+conclusive for both (CDI validation and compilation respectively).
+All bench poms verified restored byte-identical.
