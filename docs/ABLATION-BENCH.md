@@ -69,3 +69,34 @@ report) must verify at runtime, not just rebuild. The tool's suspect note should
 - Report note change: for every suspect, append "verify by removal + runtime smoke, not
   rebuild alone" (implemented in the runner's text report in the same change as this doc
   when the report format is next touched).
+
+## Re-verification 2026-08-17 (post-TASK-28 mojo): 13/13 correct, one ground-truth row REVERSED
+
+With the annotation-consumer engine running in the mojo (TASK-28), every
+classified row above was re-checked by running the current mojo over the
+surviving bench apps (super-heroes-fresh heroes/villains/narration; jwt-qs and
+cache-qs quickstarts; grpc-locations' config-yaml case is superseded: the
+fresh clone ships no application.yml).
+
+- All 9 false positives are now credited by the mojo (config-yaml via FILE:,
+  rest-qute via the Qute rule, quarkus-rest via jakarta.ws.rs, rest-jackson on
+  cache-qs via REST-SERIALIZER, reactive-pg via the reactive-driver join).
+- All true suspects in scope stay suspect (info, micrometer-opentelemetry,
+  smallrye-health).
+
+One reversal: **jwt-qs / quarkus-rest-jackson was NOT a false positive.** The
+original classification assumed "every POJO-returning endpoint would fail",
+but the app's single resource returns String from every endpoint - there is
+no POJO serialization to break. Re-ablated empirically 2026-08-17 with the
+stronger oracle: dep removed, `mvn verify` green INCLUDING all 9
+TokenSecuredResourceTest endpoint tests, and the started app's installed
+features list contains no jackson. The extension is genuinely removable; the
+tool's `suspect` verdict is correct. (cache-qs keeps the original
+serialization-only classification: it has POJO endpoints, and the tool
+credits rest-jackson there.) The serialization-only family's motivating
+sample is therefore cache-qs alone; the REST-SERIALIZER rule resolves it.
+
+Methodological corollary added to the native-methods/serializers finding
+above: the runtime-impact column itself must be verified against the app's
+actual endpoint shapes, not assumed from the family - a "would fail" that
+requires endpoints the app does not have is how this row was mis-classified.
