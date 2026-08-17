@@ -61,6 +61,7 @@ public final class AnnotationConsumerRules {
     // for a probe name that did not match the real annotation (restclient vs rest.client).
     private static final String SCHEDULED_ANNOTATION = "io.quarkus.scheduler.Scheduled";
     private static final String JSON_WEB_TOKEN_TYPE = "org.eclipse.microprofile.jwt.JsonWebToken";
+    private static final String JSON_WEB_TOKEN_GA = "io.quarkus:quarkus-smallrye-jwt";
     private static final String REGISTER_REST_CLIENT_ANNOTATION =
             "org.eclipse.microprofile.rest.client.inject.RegisterRestClient";
     private static final String JAKARTA_WS_RS_PATH = "jakarta.ws.rs.Path";
@@ -69,7 +70,7 @@ public final class AnnotationConsumerRules {
             new AnnotationRule("jakarta.validation.constraints.", "io.quarkus:quarkus-hibernate-validator"),
             new AnnotationRule("jakarta.validation.executable.", "io.quarkus:quarkus-hibernate-validator"),
             new AnnotationRule(SCHEDULED_ANNOTATION, "io.quarkus:quarkus-scheduler"),
-            new AnnotationRule(JSON_WEB_TOKEN_TYPE, "io.quarkus:quarkus-smallrye-jwt"),
+            new AnnotationRule(JSON_WEB_TOKEN_TYPE, JSON_WEB_TOKEN_GA),
             new AnnotationRule("jakarta.ws.rs", "io.quarkus:quarkus-resteasy-jackson"),
             // Client serializer credited by @RegisterRestClient, not server @Path (skeptic finding 5:
             // resteasy-jackson and resteasy-client-jackson have NO overlapping capability, so they
@@ -142,10 +143,8 @@ public final class AnnotationConsumerRules {
         if (presentAnnotationPrefixes.isEmpty()) {
             // No annotation family matched; the reactive-driver join may still resolve.
             Map<String, String> joinOnly = reactiveDriverJoin(report, dbKindValues);
-            if (joinOnly.isEmpty()) {
-                return report;
-            }
-            return flipSuspects(report, joinOnly);
+            AnalysisReport out = joinOnly.isEmpty() ? report : flipSuspects(report, joinOnly);
+            return annotateNearMisses(out, index, declaredExtensionGas);
         }
 
         // Build the updated report: flip matching suspects to used-bytecode. The evidence names the
@@ -165,11 +164,92 @@ public final class AnnotationConsumerRules {
         // TASK-22 reactive-driver join (may add credits even when no annotation rule fired).
         resolvedByGa.putAll(reactiveDriverJoin(report, dbKindValues));
 
-        if (resolvedByGa.isEmpty()) {
+        AnalysisReport credited = resolvedByGa.isEmpty()
+                ? report
+                : flipSuspects(report, resolvedByGa);
+        return annotateNearMisses(credited, index, declaredExtensionGas);
+    }
+
+    /**
+     * TASK-32: near-miss telemetry. Every shape-blindness bug found so far (Uni&lt;Pojo&gt;,
+     * RestResponse&lt;Pojo&gt;, method-level @Path, Instance&lt;JsonWebToken&gt;) was a rule whose model of
+     * "how the evidence appears in bytecode" was narrower than reality, and the behavioral suite
+     * could not catch it because its fixtures encode the same model. This pass is the runtime
+     * detector for that bug class: for a family that did NOT credit, a LOOSE probe (evidence in
+     * any declaration shape, at any depth) runs against the index, and when it hits while the
+     * strict probe did not, the still-suspect row's note says so. The next Apicurio then
+     * self-reports instead of waiting for a bench re-run. Near-miss evidence NEVER credits.
+     *
+     * <p>Pilot: the JWT type-mention family (recursive type-graph walk). The mechanism (map of
+     * GA to diagnostic, appended to the surviving suspect row's note) is family-agnostic; add
+     * loose probes per family as shapes are discovered in the wild.
+     */
+    private static AnalysisReport annotateNearMisses(AnalysisReport report, IndexView index,
+            Set<String> declaredExtensionGas) {
+        Map<String, String> nearMissByGa = new LinkedHashMap<>();
+        if (declaredExtensionGas.contains(JSON_WEB_TOKEN_GA)) {
+            boolean strictHit = index.getKnownClasses().stream().anyMatch(ci ->
+                    ci.fields().stream().anyMatch(f -> mentionsJwt(f.type()))
+                    || ci.methods().stream().anyMatch(m -> mentionsJwt(m.returnType())
+                            || m.parameterTypes().stream().anyMatch(AnnotationConsumerRules::mentionsJwt)));
+            if (!strictHit && mentionsJwtAnywhere(index)) {
+                nearMissByGa.put(JSON_WEB_TOKEN_GA,
+                        "near-miss (diagnostic): the app mentions " + JSON_WEB_TOKEN_TYPE
+                                + " in a declaration shape the rule does not credit (e.g. nested or"
+                                + " wildcard wrapping); if this is real usage the probe needs extending");
+            }
+        }
+        if (nearMissByGa.isEmpty()) {
             return report;
         }
+        List<ExtensionReport> annotated = new ArrayList<>();
+        for (ExtensionReport r : report.dependencies()) {
+            String diagnostic = nearMissByGa.get(r.ga());
+            if (diagnostic != null && r.verdict() == Verdict.SUSPECT
+                    && (r.note() == null || !r.note().contains("near-miss"))) {
+                annotated.add(new ExtensionReport(r.ga(), r.quarkusExtension(), r.verdict(),
+                        r.configInherited(), r.configRoots(), r.configMatchedKeys(), r.configSource(),
+                        r.inheritedRoots(), r.bytecodeReferenced(), r.capabilityEvidence(),
+                        r.note() == null ? diagnostic : r.note() + " | " + diagnostic,
+                        r.bytecodeViaTransitiveApi(), r.valueRuleEvidence(), r.sharedReferencedJars(),
+                        r.vocabularyEvidence()));
+            } else {
+                annotated.add(r);
+            }
+        }
+        // Notes only: verdicts and summaries unchanged.
+        return new AnalysisReport(report.applicationArtifact(), report.generatedAt(), annotated,
+                report.ignoreRecommendations(), report.extensions(), report.plainJars(),
+                report.summary());
+    }
 
-        return flipSuspects(report, resolvedByGa);
+    /** The loose JWT probe: the exact FQCN anywhere in a declaration's type graph. */
+    private static boolean mentionsJwtAnywhere(IndexView index) {
+        return index.getKnownClasses().stream().anyMatch(ci ->
+                ci.fields().stream().anyMatch(f -> typeGraphMentionsJwt(f.type()))
+                || ci.methods().stream().anyMatch(m -> typeGraphMentionsJwt(m.returnType())
+                        || m.parameterTypes().stream()
+                                .anyMatch(AnnotationConsumerRules::typeGraphMentionsJwt)));
+    }
+
+    /** Recursive walk: bare name, parameterized arguments, array component, wildcard bound. */
+    private static boolean typeGraphMentionsJwt(org.jboss.jandex.Type type) {
+        if (type == null) {
+            return false;
+        }
+        if (type.name().toString().equals(JSON_WEB_TOKEN_TYPE)) {
+            return true;
+        }
+        if (type instanceof org.jboss.jandex.ParameterizedType pt) {
+            return pt.arguments().stream().anyMatch(AnnotationConsumerRules::typeGraphMentionsJwt);
+        }
+        if (type instanceof org.jboss.jandex.ArrayType at) {
+            return typeGraphMentionsJwt(at.component());
+        }
+        if (type instanceof org.jboss.jandex.WildcardType wt && wt.extendsBound() != null) {
+            return typeGraphMentionsJwt(wt.extendsBound());
+        }
+        return false;
     }
 
     /**

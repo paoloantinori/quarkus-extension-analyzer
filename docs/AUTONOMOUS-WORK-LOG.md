@@ -1111,3 +1111,28 @@ workspace.
 Verification: full reactor BUILD SUCCESS, 160 tests (152 core incl. the two
 new JWT pins + 3 runner + 2 IT + 3 adapter); Apicurio poms verified restored
 (0 analyzer refs).
+
+### Work unit 31, 2026-08-17, TASK-32: near-miss telemetry (the Apicurio lesson, mechanized)
+
+When a rule does not fire but loose evidence exists, the still-suspect row's
+note now says so (pilot: the JWT type-mention family, recursive type-graph
+loose probe: bare name, parameterized arguments at any depth, array
+component, wildcard bound). Near-miss evidence NEVER credits; it annotates
+the suspect row (appended to the existing note, zero schema change, visible
+in text and JSON). The mechanism is family-agnostic: one loose probe per
+family, added as shapes are discovered in the wild.
+
+The user challenged whether the verification was real - correctly: green
+unit tests plus absence-of-noise on the bench do NOT prove the detector
+detects. The decisive check was a mutation: the Instance<Jwt> fix reverted
+(the original Apicurio bug reintroduced), mojo rerun on the real Apicurio
+app - and the smallrye-jwt suspect row self-reported
+"near-miss (diagnostic): the app mentions ...JsonWebToken in a declaration
+shape the rule does not credit". Fix restored (verified identical), clean
+state re-verified on the real app (credit, no noise). Also fixed during the
+unit round: the empty-prefixes early-return path initially skipped the
+telemetry pass entirely (caught by the new tests), and the nested-generic
+field fixture refactor had broken the one-level signature.
+
+Verification: 58 behavioral tests green, full reactor BUILD SUCCESS (164
+tests); mutation both directions on the real Apicurio bench.

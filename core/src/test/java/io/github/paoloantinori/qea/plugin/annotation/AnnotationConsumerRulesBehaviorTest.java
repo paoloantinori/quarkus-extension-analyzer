@@ -290,12 +290,22 @@ class AnnotationConsumerRulesBehaviorTest {
     /** A class with a generic field {@code Wrapper<Arg>} (descriptor + signature, the CDI
      *  {@code Instance<JsonWebToken>} shape). */
     private static byte[] genericFieldClass(String fqcn, String wrapperFqcn, String argFqcn) {
+        return nestedGenericFieldClass(fqcn, wrapperFqcn, null, argFqcn);
+    }
+
+    /** A class with a generic field {@code Outer<Arg>} or {@code Outer<Inner<Arg>>}
+     *  (innerFqcn null for one level). */
+    private static byte[] nestedGenericFieldClass(String fqcn, String outerFqcn, String innerFqcn,
+            String argFqcn) {
+        String typeArg = innerFqcn == null
+                ? "L" + internal(argFqcn) + ";"
+                : "L" + internal(innerFqcn) + "<L" + internal(argFqcn) + ";>;";
         var cw = new ClassWriter(0);
         cw.visit(Opcodes.V17, Opcodes.ACC_PUBLIC,
                 internal(fqcn), null, "java/lang/Object", null);
         cw.visitField(Opcodes.ACC_PUBLIC, "f",
-                "L" + internal(wrapperFqcn) + ";",
-                "L" + internal(wrapperFqcn) + "<L" + internal(argFqcn) + ";>;", null).visitEnd();
+                "L" + internal(outerFqcn) + ";",
+                "L" + internal(outerFqcn) + "<" + typeArg + ">;", null).visitEnd();
         cw.visitEnd();
         return cw.toByteArray();
     }
@@ -560,6 +570,41 @@ class AnnotationConsumerRulesBehaviorTest {
                         "com.acme.JsonWebTokenWrapper"),
                 plainClass("com.acme.JsonWebTokenWrapper"));
         assertStillSuspect(idx, SMALLRYE_JWT);
+    }
+
+    // --- near-miss telemetry (TASK-32) -----------------------------------------------------------------
+
+    @Test
+    void nestedJwtWrappingStaysSuspectButReportsANearMiss() throws IOException {
+        // Provider<Instance<JsonWebToken>>: the strict probe unwraps one level only, so no
+        // credit - but the row's note must self-report the almost-evidence instead of staying
+        // silent (the runtime detector for the shape-blindness bug class).
+        Index idx = index(nestedGenericFieldClass("res.R",
+                "jakarta.enterprise.inject.Provider", "jakarta.enterprise.inject.Instance", JWT_TYPE));
+        AnalysisReport out = AnnotationConsumerRules.apply(report(suspect(SMALLRYE_JWT)),
+                idx, Set.of(SMALLRYE_JWT), Set.of(), NOWHERE);
+        assertThat(rowOf(out, SMALLRYE_JWT).verdict()).isEqualTo(Verdict.SUSPECT);
+        assertThat(rowOf(out, SMALLRYE_JWT).note()).contains("near-miss (diagnostic)");
+        assertThat(out.extensions().suspect()).isEqualTo(1);
+    }
+
+    @Test
+    void creditedJwtShapesReportNoNearMiss() throws IOException {
+        // When the strict probe fires the loose probe is not consulted: no diagnostic noise.
+        Index idx = index(
+                genericFieldClass("res.S", "jakarta.enterprise.inject.Instance", JWT_TYPE));
+        AnalysisReport out = AnnotationConsumerRules.apply(report(suspect(SMALLRYE_JWT)),
+                idx, Set.of(SMALLRYE_JWT), Set.of(), NOWHERE);
+        assertThat(rowOf(out, SMALLRYE_JWT).verdict()).isEqualTo(Verdict.USED_BYTECODE);
+        assertThat(rowOf(out, SMALLRYE_JWT).note()).doesNotContain("near-miss");
+    }
+
+    @Test
+    void absentJwtEvidenceReportsNoNearMiss() throws IOException {
+        AnalysisReport out = AnnotationConsumerRules.apply(report(suspect(SMALLRYE_JWT)),
+                STUB_ONLY_INDEX, Set.of(SMALLRYE_JWT), Set.of(), NOWHERE);
+        String note = rowOf(out, SMALLRYE_JWT).note();
+        assertThat(note == null || !note.contains("near-miss")).isTrue();
     }
 
     // --- reactive-driver join (TASK-22/23) --------------------------------------------------------------
