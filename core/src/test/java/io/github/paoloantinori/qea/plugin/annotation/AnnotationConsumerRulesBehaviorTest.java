@@ -581,7 +581,9 @@ class AnnotationConsumerRulesBehaviorTest {
         // counterpart is not declared, so the declaration is required -> used-bytecode.
         AnalysisReport out = AnnotationConsumerRules.apply(report(suspect(REST_JACKSON)),
                 STUB_ONLY_INDEX, Set.of(REST_JACKSON), Set.of(), NOWHERE,
-                java.util.Map.of(REST_JACKSON, "org.keycloak:keycloak-quarkus-server"));
+                java.util.Map.of(REST_JACKSON,
+                        "deployment-consumer: required by org.keycloak:keycloak-quarkus-server's"
+                                + " deployment tree"));
         assertThat(rowOf(out, REST_JACKSON).verdict()).isEqualTo(Verdict.USED_BYTECODE);
         assertThat(rowOf(out, REST_JACKSON).note()).contains("deployment-consumer")
                 .contains("org.keycloak:keycloak-quarkus-server");
@@ -592,7 +594,7 @@ class AnnotationConsumerRulesBehaviorTest {
         AnalysisReport out = AnnotationConsumerRules.apply(
                 report(row(REST_JACKSON, Verdict.USED_CONFIG)),
                 STUB_ONLY_INDEX, Set.of(REST_JACKSON), Set.of(), NOWHERE,
-                java.util.Map.of(REST_JACKSON, "org.keycloak:keycloak-quarkus-server"));
+                java.util.Map.of(REST_JACKSON, "deployment-consumer: test evidence"));
         assertThat(rowOf(out, REST_JACKSON).note()).isNull();
     }
 

@@ -53,7 +53,7 @@ public final class AnnotationAttribution {
     public static AnalysisReport apply(AnalysisReport report, IndexView beanIndex, ApplicationModel model,
             Set<String> dbKindValues, Path projectRoot) {
         return AnnotationConsumerRules.apply(report, beanIndex, collectDeclaredExtensionGas(model),
-                dbKindValues, projectRoot, collectDeploymentConsumers(model));
+                dbKindValues, projectRoot, collectEvidence(model));
     }
 
     /**
@@ -71,16 +71,16 @@ public final class AnnotationAttribution {
     }
 
     /**
-     * TASK-38: suspect GA -> the extension whose DEPLOYMENT artifact directly declares the
-     * suspect's -deployment artifact (the Keycloak shape: the runtime pom declares extensions
-     * consumed by the server extension's deployment tree). Direct declarations only: each
-     * deployment artifact's {@code getDependencies()} is its own POM's list, so a transitively
-     * pulled -deployment would be misattributed to its intermediate carrier. Mirrors the mojo
-     * shell's copy in IsolatedAnalyzerRunner (the derivation needs bootstrap types core must not
-     * depend on); both copies are pinned by tests.
+     * TASK-38/40: suspect GA -> a full evidence line, from two authorities: the deployment-tree
+     * join (a -deployment artifact directly declaring the suspect's -deployment; the descriptor
+     * enforces the runtime counterpart's declaration) and the build-step producer/consumer graph
+     * over the same deployment artifacts (the augmentation authority). Mirrors the mojo shell's
+     * copy in IsolatedAnalyzerRunner (bootstrap types keep the derivation out of core); both
+     * copies are pinned by tests.
      */
-    static java.util.Map<String, String> collectDeploymentConsumers(ApplicationModel model) {
-        java.util.Map<String, String> consumers = new java.util.LinkedHashMap<>();
+    static java.util.Map<String, String> collectEvidence(ApplicationModel model) {
+        java.util.Map<String, String> evidence = new java.util.LinkedHashMap<>();
+        java.util.Map<String, java.util.List<Path>> deploymentJarsByGa = new java.util.LinkedHashMap<>();
         for (ResolvedDependency d : model.getDependencies()) {
             if (!d.isDeploymentCp() || !d.getArtifactId().endsWith("-deployment")) {
                 continue;
@@ -91,10 +91,24 @@ public final class AnnotationAttribution {
                 if (dep.getArtifactId().endsWith("-deployment")) {
                     String consumedGa = dep.getGroupId() + ":" + dep.getArtifactId()
                             .substring(0, dep.getArtifactId().length() - "-deployment".length());
-                    consumers.putIfAbsent(consumedGa, consumerGa);
+                    evidence.putIfAbsent(consumedGa,
+                            "deployment-consumer: required by " + consumerGa
+                                    + "'s deployment tree (the extension descriptor enforces the"
+                                    + " runtime counterpart's declaration; removal fails the build)");
                 }
             }
+            var paths = d.getResolvedPaths();
+            if (paths != null && !paths.isEmpty()) {
+                deploymentJarsByGa.computeIfAbsent(consumerGa, k -> new java.util.ArrayList<>())
+                        .addAll(paths.stream().toList());
+            }
         }
-        return consumers;
+        try {
+            evidence.putAll(io.github.paoloantinori.qea.plugin.buildsteps.BuildStepGraph
+                    .producerEdges(deploymentJarsByGa));
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException("build-step graph mining failed: " + e.getMessage(), e);
+        }
+        return evidence;
     }
 }

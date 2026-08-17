@@ -76,8 +76,10 @@ class AnnotationAttributionAdapterTest {
                         io.quarkus.maven.dependency.ArtifactCoords.fromString(
                                 "io.quarkus:quarkus-rest-jackson-deployment:1.0")));
 
-        assertThat(AnnotationAttribution.collectDeploymentConsumers(model)).containsEntry(
-                "io.quarkus:quarkus-rest-jackson", "org.keycloak:keycloak-quarkus-server");
+        assertThat(AnnotationAttribution.collectEvidence(model))
+                .containsKey("io.quarkus:quarkus-rest-jackson");
+        assertThat(AnnotationAttribution.collectEvidence(model)
+                .get("io.quarkus:quarkus-rest-jackson")).contains("org.keycloak:keycloak-quarkus-server");
     }
 
     @Test
@@ -86,7 +88,7 @@ class AnnotationAttributionAdapterTest {
         // create an edge: only deployment-artifact consumers count.
         ApplicationModel model = modelOf(
                 dep("io.quarkus", "quarkus-rest", true, true));
-        assertThat(AnnotationAttribution.collectDeploymentConsumers(model)).isEmpty();
+        assertThat(AnnotationAttribution.collectEvidence(model)).isEmpty();
     }
 
     private static ResolvedDependency deployment(String g, String a,

@@ -142,7 +142,9 @@ public final class IsolatedAnalyzerRunner {
         // TASK-38: suspect GA -> consuming extension (its -deployment directly declares the
         // suspect's -deployment). Direct declarations only: getDependencies() is the artifact's own
         // POM list, so transitively pulled -deployment artifacts are not misattributed.
-        java.util.Map<String, String> deploymentConsumers = new java.util.LinkedHashMap<>();
+        // Values are FULL evidence lines (the engine is authority-agnostic).
+        java.util.Map<String, String> evidenceByGa = new java.util.LinkedHashMap<>();
+        java.util.Map<String, java.util.List<Path>> deploymentJarsByGa = new java.util.LinkedHashMap<>();
         for (io.quarkus.maven.dependency.ResolvedDependency d : model.getDependencies()) {
             if (!d.isDeploymentCp() || !d.getArtifactId().endsWith("-deployment")) {
                 continue;
@@ -153,9 +155,26 @@ public final class IsolatedAnalyzerRunner {
                 if (dep.getArtifactId().endsWith("-deployment")) {
                     String consumedGa = dep.getGroupId() + ":" + dep.getArtifactId()
                             .substring(0, dep.getArtifactId().length() - "-deployment".length());
-                    deploymentConsumers.putIfAbsent(consumedGa, consumerGa);
+                    evidenceByGa.putIfAbsent(consumedGa,
+                            "deployment-consumer: required by " + consumerGa
+                                    + "'s deployment tree (the extension descriptor enforces the"
+                                    + " runtime counterpart's declaration; removal fails the build)");
                 }
             }
+            // Collect for the build-step graph (TASK-40): runtime GA -> deployment artifact paths.
+            var paths = d.getResolvedPaths();
+            if (paths != null && !paths.isEmpty()) {
+                deploymentJarsByGa.computeIfAbsent(consumerGa, k -> new java.util.ArrayList<>())
+                        .addAll(paths.stream().toList());
+            }
+        }
+        // TASK-40: the build-step producer/consumer graph over the same deployment artifacts -
+        // the augmentation authority (a required item without its producer fails the build).
+        try {
+            evidenceByGa.putAll(io.github.paoloantinori.qea.plugin.buildsteps.BuildStepGraph
+                    .producerEdges(deploymentJarsByGa));
+        } catch (IOException e) {
+            throw new IOException("build-step graph mining failed: " + e.getMessage(), e);
         }
         // TASK-39: the module's OWN deployment sibling (the shape no dependency model can see:
         // the -deployment module depends on the runtime module, never vice versa, so analyzing an
@@ -164,13 +183,13 @@ public final class IsolatedAnalyzerRunner {
         // parent's module list and add its direct -deployment declarations with the analyzed
         // module itself as the consumer. Safe by the same descriptor enforcement TASK-38 proved:
         // the runtime pom MUST declare every -deployment the sibling declares, or the build fails.
-        addOwnDeploymentSiblingEdges(deploymentConsumers, project);
+        addOwnDeploymentSiblingEdges(evidenceByGa, project);
 
         return io.github.paoloantinori.qea.plugin.annotation.AnnotationConsumerRules.apply(report,
                 appIndex != null ? appIndex : new org.jboss.jandex.Indexer().complete(),
                 declaredExtensionGas,
                 io.github.paoloantinori.qea.plugin.annotation.AnnotationConsumerRules.dbKindValues(appConfig),
-                project.getBasedir().toPath(), deploymentConsumers);
+                project.getBasedir().toPath(), evidenceByGa);
     }
 
     /**
@@ -207,7 +226,10 @@ public final class IsolatedAnalyzerRunner {
                     if (dep.getArtifactId() != null && dep.getArtifactId().endsWith("-deployment")) {
                         String consumedGa = dep.getGroupId() + ":" + dep.getArtifactId()
                                 .substring(0, dep.getArtifactId().length() - "-deployment".length());
-                        deploymentConsumers.putIfAbsent(consumedGa, consumerGa);
+                        deploymentConsumers.putIfAbsent(consumedGa,
+                                "deployment-consumer: required by " + consumerGa
+                                        + "'s deployment tree (the extension descriptor enforces the"
+                                        + " runtime counterpart's declaration; removal fails the build)");
                     }
                 }
                 return; // the sibling is unique; stop at the first match

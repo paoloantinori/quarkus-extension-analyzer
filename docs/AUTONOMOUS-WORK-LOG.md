@@ -1390,3 +1390,40 @@ requires these.
 
 Verification: full reactor 178 tests green; keycloak runtime run captured
 (11/10/1/0); bench all-green after refresh.
+
+### Work unit 41, 2026-08-17, TASK-40 rung 3: build-step graph mining live in both forms
+
+BuildStepGraph in core (io.github.paoloantinori.qea.plugin.buildsteps): a
+producer/consumer graph over the -deployment artifacts' bytecode - for each
+@BuildStep method, the RETURN type is a produced item and each parameter a
+consumed one (matching by exact FQCN, prefiltered on the BuildItem suffix);
+a producer extension whose item another extension's steps consume (direct,
+required, non-self) is load-bearing with edge evidence. This is the
+augmentation authority: a required item without its producer fails the
+build, so the credit rides the same mechanism Quarkus uses to fail.
+
+The engine's sixth parameter generalized from deployment-consumer-only to
+a full evidence map (authority-agnostic: the shells compose
+deployment-tree join + sibling scan + build-step edges; values are ready
+evidence lines). Both shells wire the graph over the SAME deployment
+artifacts they already resolve for the join (no new IO).
+
+Pins: three compile-in-memory fixtures with the REAL @BuildStep FQCN
+(direct required consumption creates the edge naming item and consumer;
+self-consumption is not an edge; unrelated items create nothing). The
+first fixture round exposed the Item-suffix prefilter on itself
+(SerializerItem did not end with BuildItem) - renamed, and the filter is
+now documented in the class javadoc as a v1 scope boundary together with
+Multi/Produce shapes.
+
+Bench: all seven apps at baseline with the graph LIVE - it credits
+nothing on top of the deployment-tree join on any bench app (the join
+already fired where the descriptor forces the runtime declaration, and no
+bench app has a suspect whose items are consumed by another extension's
+steps). Zero over-credit on the ground-truth apps (security-jwt keeps its
+1 true suspect). The graph's value is the residual space the join cannot
+see: an extension whose runtime declaration is NOT forced by a descriptor
+edge but whose build items are consumed at augmentation.
+
+Verification: full reactor 181 tests green (168 core incl. the 3 graph
+pins + 6 runner + 2 IT + 5 adapter); bench all-green.
