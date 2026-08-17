@@ -1136,3 +1136,26 @@ field fixture refactor had broken the one-level signature.
 
 Verification: 58 behavioral tests green, full reactor BUILD SUCCESS (164
 tests); mutation both directions on the real Apicurio bench.
+
+### Work unit 32, 2026-08-17, TASK-33: the shape matrix (and its first catch)
+
+AnnotationConsumerRulesShapeMatrixTest crosses every type-mention mechanism
+(JWT probe, Qute probe, REST serializer unwrap) with the generic declaration
+shapes (bare, Instance/Optional/Supplier/Provider wrappers, arrays, ? extends
+wildcard, two-level nesting) across positions (field, return, parameter),
+with the expected semantics documented per cell in the javadoc - including
+the honest documented gap (wrapped qute Template does not credit; extend the
+probe before crediting it). Positional annotation shapes are referenced to
+their existing dedicated tests instead of duplicated.
+
+The matrix paid on first run: the Jwt[] cell failed. A prior reviewer had
+claimed Jandex ArrayType.name() delegates to the component name (so arrays
+were believed covered); empirically false - name() is the bracketed name
+(which is why Pojo[] returns credit in the serializer matrix: the bracketed
+name is simply not in the exclusion set, a coincidence rather than a
+mechanism). JsonWebToken[] as a field/param is real usage and was missed;
+mentionsJwt now unwraps array components explicitly. The matrix turned a
+wrong shared belief into a failing cell and a one-branch fix.
+
+Verification: matrix 5 tests (~30 cells) + behavioral 58 green; full
+reactor BUILD SUCCESS (169 tests).

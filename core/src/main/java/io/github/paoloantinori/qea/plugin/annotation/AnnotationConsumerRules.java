@@ -625,8 +625,10 @@ public final class AnnotationConsumerRules {
     }
 
     /**
-     * Whether a declared type IS the exact JWT type or wraps it as a single type argument
-     * ({@code Instance<JsonWebToken>}, the CDI shape the Apicurio bench uses). Deeper nesting
+     * Whether a declared type IS the exact JWT type, wraps it as a single type argument
+     * ({@code Instance<JsonWebToken>}, the CDI shape the Apicurio bench uses), or is an array of
+     * it ({@code JsonWebToken[]}: Jandex {@code ArrayType.name()} is the bracketed name, not the
+     * component, found by the TASK-33 matrix). Deeper nesting
      * ({@code Provider<Instance<JsonWebToken>>}) does not occur in real code and stays unflagged.
      */
     private static boolean mentionsJwt(org.jboss.jandex.Type type) {
@@ -635,6 +637,9 @@ public final class AnnotationConsumerRules {
         }
         if (type instanceof org.jboss.jandex.ParameterizedType pt && !pt.arguments().isEmpty()) {
             return pt.arguments().stream().anyMatch(a -> a.name().toString().equals(JSON_WEB_TOKEN_TYPE));
+        }
+        if (type instanceof org.jboss.jandex.ArrayType at) {
+            return at.component().name().toString().equals(JSON_WEB_TOKEN_TYPE);
         }
         return false;
     }
