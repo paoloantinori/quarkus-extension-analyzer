@@ -1286,3 +1286,29 @@ of the defenses on foreign ground):
 Verification: full reactor 170 tests green; bench snapshot zero drift;
 events module fix verified end-to-end (before: suspect; after:
 used-bytecode with evidence).
+
+### Work unit 37, 2026-08-17, TASK-37: Keycloak 26.7.0 as the seventh bench app
+
+The flagship case (30k stars) built cleanly WITHOUT its own reactor:
+shallow clone at 26.7.0, quarkus/runtime module built from Central
+artifacts only (feasibility anchor from the plan: org.keycloak
+artifacts are published). Module map per the plan; runtime was the
+right target (22 direct Quarkus extension declarations).
+
+Report: 5/10/1 used + 6 extension suspects {hibernate-validator,
+micrometer, micrometer-opentelemetry, micrometer-registry-prometheus,
+opentelemetry, rest-jackson} and 59 plain-jar suspects (Keycloak's
+long utility tail). Zero near-miss firing. The interesting analysis
+finding: the flagged extensions are consumed by Keycloak's OWN
+extension deployment module (quarkus/deployment depends on
+quarkus-rest-jackson-deployment and quarkus-hibernate-validator-
+deployment), not by this module's code or config - the runtime pom's
+declarations are arguably redundant (the extensions arrive via the
+server extension's tree regardless). The tool's verdict is honest
+per-module analysis; the pattern ("extension consumed by another
+extension's deployment module") is a candidate future rule
+(deployment-consumer), recorded here, not a bug.
+
+Promoted: seventh app in scripts/bench-snapshot.sh (keycloak-runtime,
+pinned 6c73e30), expected file generated and verified; full bench
+seven-app run green.

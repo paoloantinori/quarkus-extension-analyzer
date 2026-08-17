@@ -12,6 +12,7 @@ documented act (record why in the work log), never a silent one.
 | rest-heroes, rest-fights | /private/tmp/super-heroes-fresh | a3f2ce1 (platform 3.38.1) |
 | apicurio app | /private/tmp/apicurio-registry-fresh | 400a3db |
 | quickstarts | /private/tmp/quarkus-quickstarts | 31306c8 (3.38.2) |
+| keycloak quarkus/runtime | /private/tmp/keycloak-267 | 6c73e30 = 26.7.0 (Quarkus 3.33.2.1) |
 
 ## Provenance of the current files
 

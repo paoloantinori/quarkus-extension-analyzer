@@ -25,6 +25,7 @@ apps=(
   "/private/tmp/quarkus-quickstarts/cache-quickstart|cache-quickstart"
   "/private/tmp/quarkus-quickstarts/security-jwt-quickstart|security-jwt-quickstart"
   "/private/tmp/apicurio-registry-fresh/app|apicurio-app"
+  "/private/tmp/keycloak-267/quarkus/runtime|keycloak-runtime"
 )
 
 # Apicurio needs its own module deps installed into the local repo first (one-time cost,
