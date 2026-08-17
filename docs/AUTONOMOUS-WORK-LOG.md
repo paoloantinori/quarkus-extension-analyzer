@@ -1081,3 +1081,33 @@ as written. Bench poms verified restored.
 
 Verification: mvn clean install BUILD SUCCESS, 158 tests; bench runs
 captured in /tmp/qea-reval/*-3382-*.
+
+### Work unit 30, 2026-08-17, TASK-31: Apicurio bench re-established + a real JWT false negative fixed
+
+Fresh shallow clone at /private/tmp/apicurio-registry-fresh (the old workspace
+is damaged like super-heroes was). App module builds pristine with
+-Dmaven.test.skip=true (the first failure was only test compilation:
+-DskipTests skips execution, not compilation).
+
+Mojo run surfaced a REAL false negative: quarkus-smallrye-jwt stayed suspect
+although the app injects JsonWebToken everywhere - as Instance<JsonWebToken>
+(StorageRoleProvider, AuthorizedInterceptor). The JWT probe matched the exact
+type only, and the raw name of a parameterized field type is the Instance
+interface: the same parameterized-type blindness the REST unwrap fixed for
+Uni<T>. Fixed: the probe now unwraps one level of type argument (exact-FQCN on
+the argument, not a contains(); Instance<String> still does not fire). Pinned
+by two behavioral tests (Instance<Jwt> credits; Instance<String> does not),
+mutation-verified (unwrap removed -> the pin fails; source restored
+identical). resteasy-client-jackson stays suspect in both forms, CORRECTLY:
+the app uses no @RegisterRestClient clients.
+
+New baseline (fresh clone, 3.38.2 world): mojo extension suspects 2
+{apicurio-registry-config-index, quarkus-resteasy-client-jackson}; extension
+form 2 {the analyzer row, quarkus-resteasy-client-jackson} with config-index
+resolved by augmentation signals. The two forms agree on the true suspect.
+Old damaged-era numbers (mojo 5 -> extension 1, -80%) retired with the
+workspace.
+
+Verification: full reactor BUILD SUCCESS, 160 tests (152 core incl. the two
+new JWT pins + 3 runner + 2 IT + 3 adapter); Apicurio poms verified restored
+(0 analyzer refs).

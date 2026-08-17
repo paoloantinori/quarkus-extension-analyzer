@@ -287,6 +287,19 @@ class AnnotationConsumerRulesBehaviorTest {
         return cw.toByteArray();
     }
 
+    /** A class with a generic field {@code Wrapper<Arg>} (descriptor + signature, the CDI
+     *  {@code Instance<JsonWebToken>} shape). */
+    private static byte[] genericFieldClass(String fqcn, String wrapperFqcn, String argFqcn) {
+        var cw = new ClassWriter(0);
+        cw.visit(Opcodes.V17, Opcodes.ACC_PUBLIC,
+                internal(fqcn), null, "java/lang/Object", null);
+        cw.visitField(Opcodes.ACC_PUBLIC, "f",
+                "L" + internal(wrapperFqcn) + ";",
+                "L" + internal(wrapperFqcn) + "<L" + internal(argFqcn) + ";>;", null).visitEnd();
+        cw.visitEnd();
+        return cw.toByteArray();
+    }
+
     /** The framework stubs every index carries (the FQCNs the probes look for). */
     private static final byte[][] STUBS = {
             annotationClass(PATH_ANN), annotationClass(GET_ANN),
@@ -515,6 +528,25 @@ class AnnotationConsumerRulesBehaviorTest {
         // "JsonWebToken" must not fire the exact-FQCN probe.
         Index idx = index(classWithAnnotatedField("res.N", "com.acme.JsonWebTokenWrapper"),
                 plainClass("com.acme.JsonWebTokenWrapper"));
+        assertStillSuspect(idx, SMALLRYE_JWT);
+    }
+
+    @Test
+    void cdiInstanceWrappedJwtCreditsSmallryeJwt() throws IOException {
+        // The Apicurio bench shape: @Inject Instance<JsonWebToken>. The raw field type is the
+        // Instance interface, so the probe must unwrap the type argument (found as a real false
+        // negative while re-establishing the Apicurio bench, TASK-31).
+        Index idx = index(
+                genericFieldClass("res.O", "jakarta.enterprise.inject.Instance", JWT_TYPE));
+        assertFlipped(idx, SMALLRYE_JWT);
+    }
+
+    @Test
+    void instanceOfAnUnrelatedTypeDoesNotCreditSmallryeJwt() throws IOException {
+        // Instance<String> (or any non-JWT argument) must not fire: the unwrap is exact-FQCN
+        // on the argument, not a contains().
+        Index idx = index(
+                genericFieldClass("res.P", "jakarta.enterprise.inject.Instance", "java.lang.String"));
         assertStillSuspect(idx, SMALLRYE_JWT);
     }
 

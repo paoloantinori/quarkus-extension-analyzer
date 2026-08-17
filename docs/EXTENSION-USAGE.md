@@ -71,14 +71,19 @@ manufactures a verdict for an undeclared extension).
 
 ### Bench results
 
-| Bench | Mojo suspects (pre-TASK-28) | Mojo suspects (TASK-28) | Extension suspects |
+| Bench | Mojo suspects (pre-TASK-28) | Mojo suspects (current) | Extension suspects |
 |---|---|---|---|
 | rest-heroes | 5 | **2** (runtime-only pair) | 2 (+ the analyzer row) |
 | rest-fights | 3 | **2** (runtime-only pair) | 3 (incl. the analyzer row) |
 | resteasy-client-quickstart | n/a | **0** | 1 |
+| Apicurio `app` (fresh clone, TASK-31) | 5 (damaged-era record) | **2** | 2 (analyzer row + the same true suspect) |
 
-Pre-TASK-28 numbers (Apicurio `app`: mojo 5 vs extension 1, -80%) predate both
-the shared engine and the damaged-workspace re-baseline (see the caveat below).
+Both forms now agree on the Apicurio bench: the only true extension suspect is
+`quarkus-resteasy-client-jackson` (the app uses no @RegisterRestClient clients,
+so the rule correctly does not fire); the mojo also flags the project's own
+`apicurio-registry-config-index` extension, which the augmentation-time signals
+resolve. Re-establishing this bench found and fixed a real false negative (the
+JWT probe missed `Instance<JsonWebToken>` injections, TASK-31).
 
 ## Limitations
 

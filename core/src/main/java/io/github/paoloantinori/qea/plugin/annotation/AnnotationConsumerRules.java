@@ -246,13 +246,14 @@ public final class AnnotationConsumerRules {
             // Check for the exact JWT type in any declaration position (code-review finding 5: the
             // original contains() matched user types like com.acme.JsonWebTokenWrapper). The
             // evidence is the declared type in a field/return/parameter position; an @Inject is
-            // not required (a producer or a mapper parameter is equally valid usage).
+            // not required (a producer or a mapper parameter is equally valid usage). The common
+            // CDI shape is Instance<JsonWebToken> (found on the Apicurio bench): a parameterized
+            // type whose raw name is Instance, so the unwrap checks the type argument too (the
+            // same parameterized-type blindness the REST serializer unwrap fixed for Uni<T>).
             return index.getKnownClasses().stream().anyMatch(ci ->
-                    ci.fields().stream().anyMatch(f -> f.type().name().toString().equals(JSON_WEB_TOKEN_TYPE))
-                    || ci.methods().stream().anyMatch(m -> m.returnType().name().toString()
-                            .equals(JSON_WEB_TOKEN_TYPE)
-                            || m.parameterTypes().stream().anyMatch(p -> p.name().toString()
-                                    .equals(JSON_WEB_TOKEN_TYPE))));
+                    ci.fields().stream().anyMatch(f -> mentionsJwt(f.type()))
+                    || ci.methods().stream().anyMatch(m -> mentionsJwt(m.returnType())
+                            || m.parameterTypes().stream().anyMatch(AnnotationConsumerRules::mentionsJwt)));
         }
         if (prefix.startsWith("jakarta.ws.rs")) {
             return !index.getAnnotations(DotName.createSimple(JAKARTA_WS_RS_PATH)).isEmpty();
@@ -429,6 +430,21 @@ public final class AnnotationConsumerRules {
      * because the {@code NON_SERIALIZED_RETURNS} set alone cannot discriminate parameterized uses of
      * a machinery type.
      */
+    /**
+     * Whether a declared type IS the exact JWT type or wraps it as a single type argument
+     * ({@code Instance<JsonWebToken>}, the CDI shape the Apicurio bench uses). Deeper nesting
+     * ({@code Provider<Instance<JsonWebToken>>}) does not occur in real code and stays unflagged.
+     */
+    private static boolean mentionsJwt(org.jboss.jandex.Type type) {
+        if (type.name().toString().equals(JSON_WEB_TOKEN_TYPE)) {
+            return true;
+        }
+        if (type instanceof org.jboss.jandex.ParameterizedType pt && !pt.arguments().isEmpty()) {
+            return pt.arguments().stream().anyMatch(a -> a.name().toString().equals(JSON_WEB_TOKEN_TYPE));
+        }
+        return false;
+    }
+
     private static boolean returnTypeNeedsSerializer(org.jboss.jandex.Type type) {
         // Unwrap one level of async/container wrapper to inspect the payload type.
         if (type instanceof org.jboss.jandex.ParameterizedType pt) {
