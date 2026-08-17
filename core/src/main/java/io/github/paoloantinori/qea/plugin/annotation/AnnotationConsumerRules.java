@@ -144,7 +144,7 @@ public final class AnnotationConsumerRules {
             // No annotation family matched; the reactive-driver join may still resolve.
             Map<String, String> joinOnly = reactiveDriverJoin(report, dbKindValues);
             AnalysisReport out = joinOnly.isEmpty() ? report : flipSuspects(report, joinOnly);
-            return annotateNearMisses(out, index, declaredExtensionGas);
+            return annotateNearMisses(out, index, declaredExtensionGas, presentAnnotationPrefixes);
         }
 
         // Build the updated report: flip matching suspects to used-bytecode. The evidence names the
@@ -167,7 +167,7 @@ public final class AnnotationConsumerRules {
         AnalysisReport credited = resolvedByGa.isEmpty()
                 ? report
                 : flipSuspects(report, resolvedByGa);
-        return annotateNearMisses(credited, index, declaredExtensionGas);
+        return annotateNearMisses(credited, index, declaredExtensionGas, presentAnnotationPrefixes);
     }
 
     /**
@@ -185,13 +185,13 @@ public final class AnnotationConsumerRules {
      * loose probes per family as shapes are discovered in the wild.
      */
     private static AnalysisReport annotateNearMisses(AnalysisReport report, IndexView index,
-            Set<String> declaredExtensionGas) {
+            Set<String> declaredExtensionGas, Set<String> presentAnnotationPrefixes) {
         Map<String, String> nearMissByGa = new LinkedHashMap<>();
         if (declaredExtensionGas.contains(JSON_WEB_TOKEN_GA)) {
-            boolean strictHit = index.getKnownClasses().stream().anyMatch(ci ->
-                    ci.fields().stream().anyMatch(f -> mentionsJwt(f.type()))
-                    || ci.methods().stream().anyMatch(m -> mentionsJwt(m.returnType())
-                            || m.parameterTypes().stream().anyMatch(AnnotationConsumerRules::mentionsJwt)));
+            // The prefix loop already ran the strict probe: its outcome is whether the family's
+            // prefix was present (the RULES prefix for this family IS the tracked FQCN), so the
+            // loose walk below is paid only when the strict one missed.
+            boolean strictHit = presentAnnotationPrefixes.contains(JSON_WEB_TOKEN_TYPE);
             if (!strictHit && mentionsJwtAnywhere(index)) {
                 nearMissByGa.put(JSON_WEB_TOKEN_GA,
                         "near-miss (diagnostic): the app mentions " + JSON_WEB_TOKEN_TYPE
