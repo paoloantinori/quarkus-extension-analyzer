@@ -1359,3 +1359,34 @@ side (deployment depends on runtime, never vice versa). quarkus/server
 credits with the keycloak-server edge. Structural finding recorded in
 TASK-39 with the two candidate resolutions (document-the-scope vs
 workspace-sibling POM scan); the delta table AC has its first rows.
+
+### Work unit 40, 2026-08-17, TASK-39 sibling scan: keycloak extension module reaches 0 suspects
+
+Implemented the workspace-sibling POM scan (TASK-39 resolution (b), default
+on): when the analyzed module's parent POM lists a module whose artifactId
+is exactly <analyzedArtifactId>-deployment, the mojo reads that sibling's
+POM and adds its direct *-deployment declarations as deployment-consumer
+edges with the analyzed module itself as the consumer. Discovery is strict
+(parent module list + exact artifactId match, no fuzzy directory
+scanning); safe by the same descriptor enforcement TASK-38 proved
+empirically (the runtime pom MUST declare every -deployment the sibling
+declares, or the build fails). Pinned by two runner tests (synthetic
+reactor with sibling: credits with com.acme:app as consumer; no-sibling
+workspace: nothing changes).
+
+Decisive result on the real bench: keycloak quarkus/runtime (the extension
+module analyzed standalone, the shape NO dependency model can see) goes
+from 4 suspects to ZERO - all 22 declared extensions now carry honest
+evidence (11 bytecode incl. 6 deployment-consumer credits, 10 config,
+1 capability). The two module scopes now AGREE at the app level: analyzing
+the extension module standalone equals analyzing from the app module.
+Bench refreshed deliberately: keycloak-runtime 4 -> 0 suspects; all six
+other apps verified zero drift before the refresh (only keycloak changed).
+
+The sibling edge credit names the analyzed module itself as the consumer
+("required by org.keycloak:keycloak-quarkus-server's deployment tree"),
+which reads correctly for the developer: their own extension's deployment
+requires these.
+
+Verification: full reactor 178 tests green; keycloak runtime run captured
+(11/10/1/0); bench all-green after refresh.

@@ -115,6 +115,74 @@ class IsolatedAnalyzerRunnerTest {
                 .contains("org.keycloak:keycloak-quarkus-server");
     }
 
+    @Test
+    void ownDeploymentSiblingEdgesCreditFromTheExtensionModule(@TempDir Path reactorDir)
+            throws IOException {
+        // TASK-39: the shape no dependency model can see. The workspace is
+        // reactor/{app,app-deployment}; app-deployment's POM declares
+        // quarkus-rest-jackson-deployment, so analyzing "app" (whose model contains NO deployment
+        // artifacts at all) must still credit the rest-jackson suspect via the sibling scan.
+        Path appDir = Files.createDirectories(reactorDir.resolve("app"));
+        Path depDir = Files.createDirectories(reactorDir.resolve("app-deployment"));
+        Files.writeString(appDir.resolve("pom.xml"),
+                "<project><groupId>com.acme</groupId><artifactId>app</artifactId><version>1.0</version></project>");
+        Files.writeString(depDir.resolve("pom.xml"), """
+                <project>
+                  <groupId>com.acme</groupId>
+                  <artifactId>app-deployment</artifactId>
+                  <version>1.0</version>
+                  <dependencies>
+                    <dependency>
+                      <groupId>io.quarkus</groupId>
+                      <artifactId>quarkus-rest-jackson-deployment</artifactId>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """);
+        MavenProject project = project(appDir, "no-such-classes");
+        org.apache.maven.model.Model parentModel = new org.apache.maven.model.Model();
+        parentModel.addModule("app");
+        parentModel.addModule("app-deployment");
+        MavenProject parent = new MavenProject(parentModel);
+        parent.setGroupId("com.acme");
+        project.setParent(parent);
+
+        ApplicationModel model = modelOf(dep("io.quarkus", "quarkus-rest-jackson", true, true));
+        AnalysisReport report = report(suspect("io.quarkus:quarkus-rest-jackson"));
+
+        AnalysisReport out = IsolatedAnalyzerRunner.applyAnnotationConsumers(
+                model, project, AppConfigReader.empty(), report);
+
+        assertThat(rowOf(out, "io.quarkus:quarkus-rest-jackson").verdict()).isEqualTo(Verdict.USED_BYTECODE);
+        assertThat(rowOf(out, "io.quarkus:quarkus-rest-jackson").note()).contains("deployment-consumer")
+                .contains("com.acme:app");
+    }
+
+    @Test
+    void noDeploymentSiblingChangesNothing(@TempDir Path reactorDir) throws IOException {
+        // A workspace with no *-deployment sibling: no sibling edges, the plain model-based
+        // path still applies (here: nothing credits).
+        Path appDir = Files.createDirectories(reactorDir.resolve("app"));
+        Files.writeString(appDir.resolve("pom.xml"),
+                "<project><groupId>com.acme</groupId><artifactId>app</artifactId><version>1.0</version></project>");
+        Path otherDir = Files.createDirectories(reactorDir.resolve("unrelated"));
+        Files.writeString(otherDir.resolve("pom.xml"),
+                "<project><groupId>com.acme</groupId><artifactId>unrelated</artifactId><version>1.0</version></project>");
+        MavenProject project = project(appDir, "no-such-classes");
+        org.apache.maven.model.Model parentModel = new org.apache.maven.model.Model();
+        parentModel.addModule("app");
+        parentModel.addModule("unrelated");
+        project.setParent(new MavenProject(parentModel));
+
+        ApplicationModel model = modelOf(dep("io.quarkus", "quarkus-rest-jackson", true, true));
+        AnalysisReport report = report(suspect("io.quarkus:quarkus-rest-jackson"));
+
+        AnalysisReport out = IsolatedAnalyzerRunner.applyAnnotationConsumers(
+                model, project, AppConfigReader.empty(), report);
+
+        assertThat(rowOf(out, "io.quarkus:quarkus-rest-jackson").verdict()).isEqualTo(Verdict.SUSPECT);
+    }
+
     private static ResolvedDependency deploymentDep(String g, String a, String depCoords) {
         return ResolvedDependencyBuilder.newInstance()
                 .setGroupId(g).setArtifactId(a).setVersion("1.0").setDeploymentCp()

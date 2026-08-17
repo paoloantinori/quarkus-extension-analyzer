@@ -157,11 +157,64 @@ public final class IsolatedAnalyzerRunner {
                 }
             }
         }
+        // TASK-39: the module's OWN deployment sibling (the shape no dependency model can see:
+        // the -deployment module depends on the runtime module, never vice versa, so analyzing an
+        // extension module standalone - keycloak quarkus/runtime - hides the deployment edges that
+        // live in its sibling quarkus/deployment). Read the sibling's POM from the reactor via the
+        // parent's module list and add its direct -deployment declarations with the analyzed
+        // module itself as the consumer. Safe by the same descriptor enforcement TASK-38 proved:
+        // the runtime pom MUST declare every -deployment the sibling declares, or the build fails.
+        addOwnDeploymentSiblingEdges(deploymentConsumers, project);
+
         return io.github.paoloantinori.qea.plugin.annotation.AnnotationConsumerRules.apply(report,
                 appIndex != null ? appIndex : new org.jboss.jandex.Indexer().complete(),
                 declaredExtensionGas,
                 io.github.paoloantinori.qea.plugin.annotation.AnnotationConsumerRules.dbKindValues(appConfig),
                 project.getBasedir().toPath(), deploymentConsumers);
+    }
+
+    /**
+     * TASK-39: credit edges from the analyzed module's own -deployment sibling. Discovers the
+     * sibling through the parent POM's module list (no fuzzy directory scanning: only a module
+     * whose artifactId is exactly {@code <analyzedArtifactId>-deployment} counts), reads its
+     * direct {@code *-deployment} dependencies, and records consumer = the analyzed module's GA.
+     */
+    private static void addOwnDeploymentSiblingEdges(java.util.Map<String, String> deploymentConsumers,
+            MavenProject project) {
+        MavenProject parent = project.getParent();
+        if (parent == null || parent.getModules() == null || project.getBasedir() == null) {
+            return;
+        }
+        String siblingArtifact = project.getArtifactId() + "-deployment";
+        Path parentDir = project.getBasedir().toPath().getParent();
+        if (parentDir == null) {
+            return;
+        }
+        for (String module : parent.getModules()) {
+            Path siblingPom = parentDir.resolve(module).resolve("pom.xml");
+            if (!Files.isRegularFile(siblingPom)) {
+                continue;
+            }
+            try {
+                var model = new org.apache.maven.model.io.xpp3.MavenXpp3Reader()
+                        .read(java.io.InputStream.class.cast(java.nio.file.Files.newInputStream(siblingPom)));
+                if (!siblingArtifact.equals(model.getArtifactId())) {
+                    continue;
+                }
+                String consumerGa = (model.getGroupId() != null ? model.getGroupId()
+                        : parent.getGroupId()) + ":" + project.getArtifactId();
+                for (var dep : model.getDependencies()) {
+                    if (dep.getArtifactId() != null && dep.getArtifactId().endsWith("-deployment")) {
+                        String consumedGa = dep.getGroupId() + ":" + dep.getArtifactId()
+                                .substring(0, dep.getArtifactId().length() - "-deployment".length());
+                        deploymentConsumers.putIfAbsent(consumedGa, consumerGa);
+                    }
+                }
+                return; // the sibling is unique; stop at the first match
+            } catch (Exception ignored) {
+                // unreadable sibling pom: skip (the model-based edges still apply)
+            }
+        }
     }
 
     private static ApplicationModel resolveModel(MavenSession session, MavenProject project,
