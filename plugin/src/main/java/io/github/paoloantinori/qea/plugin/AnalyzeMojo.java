@@ -51,9 +51,10 @@ import java.util.List;
  * embedded Quarkus bootstrap classes are relocated under {@code io.github.paoloantinori.qea.internal}.
  * That makes the mojo immune to the classloader LinkageError on projects that expose their own
  * Quarkus bootstrap classes into the Maven build realm (the camel-quarkus IT case: they register
- * quarkus-maven-plugin as a build extension, so 3.39 classes sit in the project realm and used to
- * collide with our embedded 3.33 for split packages). The runner boundary carries only JDK and
- * Maven-API types (shared through the parent realm) and returns the report as JSON/text.
+ * quarkus-maven-plugin as a build extension, so their platform's classes sit in the project realm
+ * and used to collide with our embedded resolver's for split packages). The runner boundary
+ * carries only JDK and Maven-API types (shared through the parent realm) and returns the report
+ * as JSON/text.
  */
 @Mojo(name = "analyze", requiresDependencyResolution = ResolutionScope.TEST, threadSafe = true)
 public class AnalyzeMojo extends AbstractMojo {
