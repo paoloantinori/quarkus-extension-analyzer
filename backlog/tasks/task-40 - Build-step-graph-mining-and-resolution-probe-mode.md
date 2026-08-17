@@ -34,6 +34,10 @@ Rung 4 - resolution probe mode (dynamic, opt-in):
 Honest totality statement (to keep in the docs): rungs 3+4 together are total for BUILD-load-bearing and rung 2 (TASK-39) is total for static references; pure runtime-only usage (an /info endpoint, a serializer used by a build-step-generated implementation with zero source references) remains invisible to static analysis by construction - the documented residual, where only real ablation (removing and running the app) answers.
 
 Sequencing note: TASK-38 (deployment-tree join) ships the cheap Keycloak coverage first; this task supersedes its mechanism with the precise graph when built - keep TASK-38's empirical validation (bidirectional ablation) as the oracle for the graph's correctness.
+
+RUNG 3 DONE 2026-08-17 (commit 952266e): BuildStepGraph live in both forms over the same deployment artifacts the join resolves; engine input generalized to a full evidence map. Direct edges only (return-type producers, plain-param consumers, exact FQCN, non-self); Item-suffix prefilter + Multi/Produce shapes documented as v1 boundaries. 3 compile-in-memory pins. Bench: all seven apps at baseline with the graph live - on every bench app the join already subsumes the graph's edges (expected: cross-extension build-item consumption usually implies a -deployment POM edge too). The graph's marginal space: item consumption WITHOUT a descriptor-forced runtime declaration.
+
+RUNG 4 REMAINING. Design sketch validated against the existing machinery: the runner's resolveModel builds MavenArtifactResolver over the project; a probe re-resolution per suspect = resolve the app model with a workspace/remote filter that drops the suspect's artifacts, then inspect the failure (or the model's extension list). Implementation entry: a new -Dqea.probe flag on the mojo (default false) that, after the report, loops the suspects and emits one PROBE line per suspect with the bootstrap's verdict. Do NOT mutate the pom: mirror ChainedWorkspaceReader with an excluding reader. Budget: a day of careful work; do it as the next work unit, not a tail-of-session rush.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
