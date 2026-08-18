@@ -50,6 +50,11 @@ three signals that together approximate what augmentation actually does:
    `maven-dependency-analyzer`).
 3. **Capability requirement**: another used extension requires a capability
    this extension provides (from the Quarkus bootstrap `ApplicationModel`).
+4. **Deployment-consumer / build-step evidence**: the extension's
+   `-deployment` artifact is required by another extension's deployment tree
+   (the Quarkus extension descriptor enforces the runtime counterpart's
+   declaration), or its build steps produce an item another extension's
+   steps consume (the augmentation authority).
 
 On top of the three signals, a curated **annotation-consumer** rules pass runs
 in both forms (TASK-28): a Jandex index over the app's classes says which
@@ -140,6 +145,9 @@ bytecode signal needs `target/classes` to exist). Useful flags:
 - `-Dqea.probe=true` -- after the report, re-resolve the app model without each extension suspect
   (in-memory, no pom mutation) and append the bootstrap's verdict per suspect: the ablation
   methodology as a tool mode, the natural CI gate before acting on a report
+- every report with extension suspects also carries a **runtime verification plan**: concrete
+  steps (curl commands, log checks, or the remove-and-test protocol) a human tester or an agent
+  can run against the started application to close what static analysis cannot see
 - `-Dqea.applicationConfig=/path/to/application.yaml` -- override the auto-discovered config file
 - `-Dqea.ignoreFragments=true` -- also write `qea-mdp-ignores.xml` and `qea-depclean-ignores.xml`
   to the build directory: ready-to-paste ignore-list fragments for maven-dependency-plugin's
