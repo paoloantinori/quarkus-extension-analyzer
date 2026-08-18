@@ -1498,3 +1498,22 @@ The completeness story is now a closed loop: build-time total where
 statically possible (the four-rung ladder), runtime residual delegated
 with exact instructions, and the probe mode bridging the two
 (resolution-level ablation in-tool).
+
+### Work unit 44, 2026-08-18, DoD review of the ladder's tail (rungs 3-4 + the plan)
+
+Adversarial review of the three feature commits (graph, probe, verification
+plan): 5 PASS, 1 FAIL. The FAIL was documentation (the BuildItem-suffix
+prefilter was undocumented): one javadoc paragraph added stating the
+convention-not-contract caveat and that the failure mode is a miss, never a
+wrong credit. Both recommended non-blocking fixes applied:
+- the resolver is now built ONCE above the probe loop (was per-suspect:
+  stateless w.r.t. the dependency list, and an infrastructure failure
+  could have been misreported as "removal BREAKS resolution");
+- the duplicated suspect filter (probe vs checklist) extracted into
+  RuntimeVerificationPlan.extensionSuspects, so the two always cover the
+  same set.
+Also noted-not-fixed: the deployment-consumer evidence literal exists in
+three places (cosmetic drift risk; a shared constant would need a new
+cross-module home - leave until it actually drifts). Re-verified after the
+fixes: probe + plan live on jwt-qs (same output), full reactor 187 tests
+green.

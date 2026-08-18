@@ -130,16 +130,18 @@ public final class IsolatedAnalyzerRunner {
      */
     private static String probeSuspects(MavenSession session, MavenProject project,
             RepositorySystem repoSystem, RemoteRepositoryManager remoteRepoManager,
-            SettingsDecrypter settingsDecrypter, ApplicationModel model, AnalysisReport report) {
-        var suspects = report.dependencies().stream()
-                .filter(r -> r.verdict() == io.github.paoloantinori.qea.plugin.report.Verdict.SUSPECT
-                        && r.quarkusExtension()
-                        // the analyzer extension itself is always a self-inflicted suspect
-                        && !r.ga().startsWith("io.github.paoloantinori:"))
-                .toList();
+            SettingsDecrypter settingsDecrypter, ApplicationModel model, AnalysisReport report)
+            throws IOException {
+        var suspects = io.github.paoloantinori.qea.plugin.report.RuntimeVerificationPlan
+                .extensionSuspects(report.dependencies());
         if (suspects.isEmpty()) {
             return "probe: no extension suspects to probe.\n";
         }
+        // One resolver for the whole loop: stateless w.r.t. the dependency list, and building it
+        // here (outside the per-suspect try) keeps an infrastructure failure from being reported
+        // as "removal BREAKS resolution" for a failure unrelated to any removal.
+        BootstrapAppModelResolver resolver = buildResolver(session, project, repoSystem,
+                remoteRepoManager, settingsDecrypter);
         var directDeps = model.getDependencies().stream()
                 .filter(io.quarkus.maven.dependency.ResolvedDependency::isDirect)
                 .toList();
@@ -151,11 +153,10 @@ public final class IsolatedAnalyzerRunner {
                     .map(io.quarkus.maven.dependency.Dependency.class::cast)
                     .toList();
             try {
-                buildResolver(session, project, repoSystem, remoteRepoManager, settingsDecrypter)
-                        .resolveUserDependencies(
-                                ArtifactCoords.jar(project.getGroupId(), project.getArtifactId(),
-                                        project.getVersion()),
-                                deps);
+                resolver.resolveUserDependencies(
+                        ArtifactCoords.jar(project.getGroupId(), project.getArtifactId(),
+                                project.getVersion()),
+                        deps);
                 sb.append("probe: ").append(s.ga())
                         .append(" -> the model RESOLVES without it (removable at resolution level)\n");
             } catch (Exception e) {

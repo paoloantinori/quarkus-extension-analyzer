@@ -87,15 +87,25 @@ public final class RuntimeVerificationPlan {
     }
 
     /**
+     * The report's suspect EXTENSION rows (the shared predicate for the runtime plan and the
+     * probe mode, so the checklist and the probe always cover the same set): suspect verdict,
+     * quarkus-extension rows, the analyzer's own extension excluded (always a self-inflicted
+     * suspect).
+     */
+    public static List<ExtensionReport> extensionSuspects(List<ExtensionReport> rows) {
+        return rows.stream()
+                .filter(r -> r.verdict() == Verdict.SUSPECT && r.quarkusExtension()
+                        && !r.ga().startsWith("io.github.paoloantinori:"))
+                .toList();
+    }
+
+    /**
      * The checklist for the report's SUSPECT extension rows: the runtime residual the static
      * signals cannot close, as concrete steps per suspect. Empty string when there is nothing
      * to verify (no extension suspects).
      */
     public static String plan(List<ExtensionReport> rows) {
-        var suspects = rows.stream()
-                .filter(r -> r.verdict() == Verdict.SUSPECT && r.quarkusExtension()
-                        && !r.ga().startsWith("io.github.paoloantinori:"))
-                .toList();
+        var suspects = extensionSuspects(rows);
         if (suspects.isEmpty()) {
             return "";
         }

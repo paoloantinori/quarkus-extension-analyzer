@@ -50,7 +50,12 @@ import java.util.zip.ZipInputStream;
  *
  * <p>Known limitation (the honest totality statement): items consumed via
  * {@code MultiBuildItem} collections or produced via {@code @Produce} on void methods are not
- * extracted for v1; those edges are invisible here and remain TASK-40 follow-up scope.
+ * extracted for v1; those edges are invisible here and remain TASK-40 follow-up scope. Producer
+ * and consumer detection both rely on the item FQCN ending in the literal string
+ * {@code "BuildItem"}: a Quarkus convention observed across the platform, not a contract, so a
+ * hypothetical item class named differently is invisible to the graph (a false edge would
+ * additionally require a matching like-named producer, so the failure mode is a miss, never a
+ * wrong credit).
  */
 public final class BuildStepGraph {
 
