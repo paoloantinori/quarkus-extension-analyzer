@@ -98,7 +98,10 @@ public final class IsolatedAnalyzerRunner {
         AnalysisReport report;
         try {
             report = new Analyzer(executor, debugAttribution ? System.out::println : null)
-                    .analyze(model, classesDirs, appConfig, vocabularySignal);
+                    .analyze(model,
+                            closureClassesDirs(model, classesDirs,
+                                    debugAttribution ? System.out::println : null),
+                            appConfig, vocabularySignal);
         } finally {
             executor.shutdown();
         }
@@ -171,6 +174,54 @@ public final class IsolatedAnalyzerRunner {
 
     /** The serialized analysis output: JSON for tooling, text for the build log. */
     public record ReportBundle(String json, String text) {
+    }
+
+    /**
+     * TASK-39: the app closure's classes dirs - the analyzed module's own dirs plus the resolved
+     * WORKSPACE sibling modules' classes dirs (their target/classes, from the ApplicationModel's
+     * resolved paths). The bytecode signal indexes the closure, so the verdict answers
+     * "removable from the APPLICATION?" - a dependency declared here but referenced only by a
+     * sibling's code is load-bearing for the app. The annotation-consumer index intentionally
+     * STAYS module-local (both forms agree; widening it to library-module bytecode would credit
+     * framework annotations processed by generated code, not app usage - documented residual).
+     */
+    static List<Path> closureClassesDirs(ApplicationModel model, List<Path> ownDirs) {
+        return closureClassesDirs(model, ownDirs, null);
+    }
+
+    static List<Path> closureClassesDirs(ApplicationModel model, List<Path> ownDirs,
+            java.util.function.Consumer<String> debugLog) {
+        List<Path> closure = new java.util.ArrayList<>(ownDirs);
+        for (io.quarkus.maven.dependency.ResolvedDependency d : model.getDependencies()) {
+            if (debugLog != null) {
+                debugLog.accept("[qea-debug] closure dep " + d.getGroupId() + ":" + d.getArtifactId()
+                        + " workspace=" + d.isWorkspaceModule()
+                        + " paths=" + (d.getResolvedPaths() == null ? "null"
+                                : d.getResolvedPaths().stream().toList()));
+            }
+            if (!d.isWorkspaceModule() || d.getResolvedPaths() == null) {
+                continue;
+            }
+            for (Path p : d.getResolvedPaths().stream().toList()) {
+                if (Files.isDirectory(p)) {
+                    addIfAbsent(closure, p);
+                } else if (p.toString().endsWith(".jar")) {
+                    // A workspace module resolved through its installed jar: the compiled
+                    // classes still sit in the sibling's target/classes next to it.
+                    Path classes = p.getParent().resolve("classes");
+                    if (Files.isDirectory(classes)) {
+                        addIfAbsent(closure, classes);
+                    }
+                }
+            }
+        }
+        return closure;
+    }
+
+    private static void addIfAbsent(List<Path> list, Path p) {
+        if (!list.contains(p)) {
+            list.add(p);
+        }
     }
 
     /**

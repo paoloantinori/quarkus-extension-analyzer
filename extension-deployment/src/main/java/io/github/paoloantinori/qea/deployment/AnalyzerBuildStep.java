@@ -29,6 +29,7 @@ import io.quarkus.deployment.BootstrapConfig;
 import io.quarkus.deployment.builditem.AppModelProviderBuildItem;
 import io.quarkus.deployment.pkg.builditem.ArtifactResultBuildItem;
 import io.quarkus.bootstrap.model.ApplicationModel;
+import io.quarkus.maven.dependency.ResolvedDependency;
 import org.jboss.logging.Logger;
 
 import java.io.IOException;
@@ -118,7 +119,12 @@ public final class AnalyzerBuildStep {
         // The extension form enables the vocabulary signal by default: inside augmentation the
         // ApplicationModel is authoritative (no TASK-9 fragility), so the deployment-jar vocabulary
         // harvest has complete, reliable data (unlike the mojo where it is opt-in and marginal).
-        AnalysisReport report = analyzer.analyze(model, classesDirs, appConfig, true);
+        // TASK-39: the bytecode signal indexes the APP CLOSURE (own classes + resolved workspace
+        // siblings' classes dirs), matching the mojo form's scope: the verdict answers "removable
+        // from the application?". The bean index feeding the annotation engine stays module-local
+        // in both forms (documented residual).
+        AnalysisReport report = analyzer.analyze(model, closureClassesDirs(model, classesDirs),
+                appConfig, true);
         executor.shutdown();
 
         // --- Annotation-consumer resolution (shared core engine; TASK-28) ---
@@ -173,6 +179,35 @@ public final class AnalyzerBuildStep {
             }
         }
         return Path.of("");
+    }
+
+    /**
+     * TASK-39: the app closure's classes dirs (own + resolved workspace siblings), mirroring the
+     * mojo shell's IsolatedAnalyzerRunner.closureClassesDirs so both forms share the verdict
+     * scope. Package-visible for the adapter test.
+     */
+    static List<Path> closureClassesDirs(ApplicationModel model, List<Path> ownDirs) {
+        List<Path> closure = new ArrayList<>(ownDirs);
+        for (ResolvedDependency d : model.getDependencies()) {
+            if (!d.isWorkspaceModule() || d.getResolvedPaths() == null) {
+                continue;
+            }
+            for (Path p : d.getResolvedPaths().stream().toList()) {
+                if (Files.isDirectory(p)) {
+                    if (!closure.contains(p)) {
+                        closure.add(p);
+                    }
+                } else if (p.toString().endsWith(".jar")) {
+                    // Workspace module resolved via its installed jar: the compiled classes sit
+                    // in the sibling's target/classes next to it (mirrors the mojo shell).
+                    Path classes = p.getParent().resolve("classes");
+                    if (Files.isDirectory(classes) && !closure.contains(classes)) {
+                        closure.add(classes);
+                    }
+                }
+            }
+        }
+        return closure;
     }
 
     private static AppConfigReader readAppConfig(Path projectRoot) {

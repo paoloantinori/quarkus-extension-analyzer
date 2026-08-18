@@ -1517,3 +1517,39 @@ three places (cosmetic drift risk; a shared constant would need a new
 cross-module home - leave until it actually drifts). Re-verified after the
 fixes: probe + plan live on jwt-qs (same output), full reactor 187 tests
 green.
+
+### Work unit 45, 2026-08-18, TASK-39 shipped: app-scope verdicts via the closure index
+
+The verdict's scope moved from per-module to per-application in BOTH
+forms: the bytecode signal now indexes the app CLOSURE (the analyzed
+module's classes + every resolved WORKSPACE sibling's classes), so the
+report answers "removable from the application?" - a dependency declared
+here but referenced only by a sibling's code is load-bearing for the app
+and now credits.
+
+Two derivation shapes handled (the debug line added under
+-Dqea.debugAttribution made the second visible): workspace deps resolved
+to a classes DIRECTORY (added directly) and workspace deps resolved
+through their INSTALLED JAR (the sibling's target/classes is derived from
+the jar's parent - the synthetic fixture proved the directory-only filter
+was leaving exactly this case out).
+
+Scope decision (AC #1) documented: single verdict field (app-scoped); the
+per-module hygiene question stays answerable through the evidence text
+and the sibling-scan notes rather than a duplicated moduleVerdict field
+(doubling the schema for no current consumer). The annotation-consumer
+index deliberately STAYS module-local in both forms: widening it to
+library-module bytecode would credit framework annotations processed by
+generated code, not app usage (documented residual; the two forms agree).
+
+Discriminating proof (the delta-table row): a synthetic two-module
+reactor (app depends on lib + quarkus-rest; ONLY lib's classes reference
+jakarta.ws.rs). Before the jar-shape fix: rest SUSPECT (closure missed
+the jar-resolved sibling). After: rest USED-BYTECODE with the sibling's
+reference as evidence. Bench: all seven apps at baseline (none has
+sibling-only references; keycloak's unbuilt siblings contribute no
+dirs) - zero unintended flips, as predicted.
+
+Verification: full reactor 187 tests green; synthetic flip proven both
+directions; bench all-green with no refresh needed (no verdict changed on
+any bench app).
