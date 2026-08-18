@@ -1427,3 +1427,31 @@ edge but whose build items are consumed at augmentation.
 
 Verification: full reactor 181 tests green (168 core incl. the 3 graph
 pins + 6 runner + 2 IT + 5 adapter); bench all-green.
+
+### Work unit 42, 2026-08-18, TASK-40 rung 4: the resolution probe shipped (-Dqea.probe)
+
+The bench's ablation methodology is now a tool mode. After the report, for
+each extension suspect the mojo re-resolves the app model from the SAME
+direct dependency list minus the suspect (resolveUserDependencies: the
+in-memory hook found by reading the BootstrapAppModelResolver API surface
+- no pom mutation, no file writes) and appends one PROBE line per suspect
+to the text report with the bootstrap's verdict. The resolver construction
+was extracted from resolveModel into buildResolver (shared by analysis and
+probe, one code path).
+
+Honest scope, stated in the output itself: this is the RESOLUTION
+authority (unsatisfied extension dependencies, capability conflicts at
+resolution time). Full augmentation authority (build-step failures like
+the native-method Templates) stays bench methodology - a real
+re-augmentation per suspect is a heavier mode than v1 ships.
+
+Verified on the ground-truth apps: security-jwt-quickstart's rest-jackson
+(the suspect TASK-30 ablation-proved genuinely removable) -> "the model
+RESOLVES without it" (consistent with the ground truth). Apicurio's two
+suspects -> both resolvable without them. Keycloak runtime: zero suspects,
+nothing to probe. Bench: all seven apps at baseline (probe is opt-in, the
+default report path is untouched). Refactor fallout fixed along the way:
+buildResolver wraps BootstrapMavenException into the IOException contract.
+
+The total-detection ladder is now COMPLETE at four rungs: deployment-tree
+join (1), sibling scan (2), build-step graph (3), resolution probe (4).

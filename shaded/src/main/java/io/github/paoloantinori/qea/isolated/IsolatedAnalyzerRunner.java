@@ -90,7 +90,7 @@ public final class IsolatedAnalyzerRunner {
     public static ReportBundle run(MavenSession session, MavenProject project, RepositorySystem repoSystem,
             RemoteRepositoryManager remoteRepoManager, SettingsDecrypter settingsDecrypter,
             List<Path> classesDirs, File applicationConfig, boolean vocabularySignal,
-            boolean debugAttribution, Path fragmentsDir) throws IOException {
+            boolean debugAttribution, Path fragmentsDir, boolean probe) throws IOException {
         ApplicationModel model = resolveModel(session, project, repoSystem, remoteRepoManager, settingsDecrypter);
         AppConfigReader appConfig = readAppConfig(project, applicationConfig);
         ExecutorService executor = Executors.newFixedThreadPool(
@@ -107,7 +107,60 @@ public final class IsolatedAnalyzerRunner {
             io.github.paoloantinori.qea.plugin.report.IgnoreFragments
                     .writeFragments(report.ignoreRecommendations(), fragmentsDir);
         }
-        return new ReportBundle(Reporter.toJson(report), Reporter.toText(report));
+        String text = Reporter.toText(report);
+        if (probe) {
+            text += "\n" + probeSuspects(session, project, repoSystem, remoteRepoManager,
+                    settingsDecrypter, model, report);
+        }
+        return new ReportBundle(Reporter.toJson(report), text);
+    }
+
+    /**
+     * TASK-40 rung 4: the resolution probe (the bench's ablation methodology shipped as a tool
+     * mode). For each SUSPECT extension, re-resolve the app model from the SAME direct
+     * dependency list minus the suspect ({@code resolveUserDependencies}: the in-memory hook -
+     * no pom mutation) and report the bootstrap's verdict. Honest scope: this is the RESOLUTION
+     * authority (unsatisfied extension dependencies, capability conflicts); full augmentation
+     * authority stays bench methodology.
+     */
+    private static String probeSuspects(MavenSession session, MavenProject project,
+            RepositorySystem repoSystem, RemoteRepositoryManager remoteRepoManager,
+            SettingsDecrypter settingsDecrypter, ApplicationModel model, AnalysisReport report) {
+        var suspects = report.dependencies().stream()
+                .filter(r -> r.verdict() == io.github.paoloantinori.qea.plugin.report.Verdict.SUSPECT
+                        && r.quarkusExtension()
+                        // the analyzer extension itself is always a self-inflicted suspect
+                        && !r.ga().startsWith("io.github.paoloantinori:"))
+                .toList();
+        if (suspects.isEmpty()) {
+            return "probe: no extension suspects to probe.\n";
+        }
+        var directDeps = model.getDependencies().stream()
+                .filter(io.quarkus.maven.dependency.ResolvedDependency::isDirect)
+                .toList();
+        StringBuilder sb = new StringBuilder(
+                "probe: re-resolving the app model without each suspect (resolution authority)\n");
+        for (var s : suspects) {
+            var deps = directDeps.stream()
+                    .filter(d -> !(d.getGroupId() + ":" + d.getArtifactId()).equals(s.ga()))
+                    .map(io.quarkus.maven.dependency.Dependency.class::cast)
+                    .toList();
+            try {
+                buildResolver(session, project, repoSystem, remoteRepoManager, settingsDecrypter)
+                        .resolveUserDependencies(
+                                ArtifactCoords.jar(project.getGroupId(), project.getArtifactId(),
+                                        project.getVersion()),
+                                deps);
+                sb.append("probe: ").append(s.ga())
+                        .append(" -> the model RESOLVES without it (removable at resolution level)\n");
+            } catch (Exception e) {
+                sb.append("probe: ").append(s.ga())
+                        .append(" -> removal BREAKS resolution: ")
+                        .append(String.valueOf(e.getMessage()).lines().findFirst().orElse(e.toString()))
+                        .append('\n');
+            }
+        }
+        return sb.toString();
     }
 
     /** The serialized analysis output: JSON for tooling, text for the build log. */
@@ -242,6 +295,25 @@ public final class IsolatedAnalyzerRunner {
     private static ApplicationModel resolveModel(MavenSession session, MavenProject project,
             RepositorySystem repoSystem, RemoteRepositoryManager remoteRepoManager,
             SettingsDecrypter settingsDecrypter) throws IOException {
+        try {
+            return buildResolver(session, project, repoSystem, remoteRepoManager, settingsDecrypter)
+                    .resolveModel(
+                            ArtifactCoords.jar(project.getGroupId(), project.getArtifactId(),
+                                    project.getVersion()));
+        } catch (IOException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IOException("failed to resolve the ApplicationModel for "
+                    + project.getGroupId() + ":" + project.getArtifactId() + ":" + project.getVersion()
+                    + "; build the module first (mvn compile) or install it into the local repository "
+                    + "(mvn install)", e);
+        }
+    }
+
+    /** The bootstrap resolver over the workspace-chained session (shared by analysis and probe). */
+    private static BootstrapAppModelResolver buildResolver(MavenSession session, MavenProject project,
+            RepositorySystem repoSystem, RemoteRepositoryManager remoteRepoManager,
+            SettingsDecrypter settingsDecrypter) throws IOException {
         LocalProject currentProject;
         try {
             currentProject = LocalProject.loadWorkspace(project.getBasedir().toPath());
@@ -266,14 +338,10 @@ public final class IsolatedAnalyzerRunner {
                     .setSettingsDecrypter(settingsDecrypter)
                     .setCurrentProject(currentProject)
                     .build();
-            BootstrapAppModelResolver resolver = new BootstrapAppModelResolver(mvn);
-            return resolver.resolveModel(
-                    ArtifactCoords.jar(project.getGroupId(), project.getArtifactId(), project.getVersion()));
-        } catch (Exception e) {
-            throw new IOException("failed to resolve the ApplicationModel for "
-                    + project.getGroupId() + ":" + project.getArtifactId() + ":" + project.getVersion()
-                    + "; build the module first (mvn compile) or install it into the local repository "
-                    + "(mvn install)", e);
+            return new BootstrapAppModelResolver(mvn);
+        } catch (BootstrapMavenException | RuntimeException e) {
+            throw new IOException("failed to build the bootstrap resolver for "
+                    + project.getGroupId() + ":" + project.getArtifactId(), e);
         }
     }
 

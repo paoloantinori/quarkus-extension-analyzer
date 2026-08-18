@@ -127,6 +127,16 @@ public class AnalyzeMojo extends AbstractMojo {
     @Parameter(property = "qea.vocabularySignal", defaultValue = "false")
     private boolean vocabularySignal;
 
+    /**
+     * TASK-40 rung 4 (OFF by default, slow): the resolution probe. After the report, each
+     * extension suspect is removed in-memory from the app's direct dependency list and the model
+     * is re-resolved; the text report gains one PROBE line per suspect with the bootstrap's
+     * verdict (resolves without it / removal breaks resolution). The bench's ablation
+     * methodology shipped as a tool mode; no pom mutation.
+     */
+    @Parameter(property = "qea.probe", defaultValue = "false")
+    private boolean probe;
+
     /** The deserialized report rows, for failOnSuspect and the report file. */
     private static final ObjectMapper JSON = new ObjectMapper();
 
@@ -149,7 +159,7 @@ public class AnalyzeMojo extends AbstractMojo {
         try {
             bundle = IsolatedAnalyzerRunner.run(session, project, repoSystem, remoteRepositoryManager,
                     settingsDecrypter, classesDirs, applicationConfig, vocabularySignal,
-                    debugAttribution, fragmentsDir);
+                    debugAttribution, fragmentsDir, probe);
         } catch (IOException e) {
             throw new MojoExecutionException("quarkus-extension-analyzer: analysis failed: " + e.getMessage(), e);
         }
