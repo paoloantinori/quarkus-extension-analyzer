@@ -3,7 +3,7 @@ id: TASK-40
 title: >-
   Build-step graph mining and resolution probe mode (the Quarkus-native
   total signals)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-17 19:40'
 updated_date: '2026-08-17 19:40'
@@ -42,16 +42,22 @@ RUNG 4 REMAINING. Design sketch validated against the existing machinery: the ru
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Grafo build-step estratto dai deployment jar nell'albero (riuso di BuildStepsListGenerator dove possibile)
-- [ ] #2 Crediti con evidenza-lato (X consumato da Y via build item Z); sola chiusura transitiva se il banco la richiede
-- [ ] #3 Probe mode -Dqea.probe=true con filtro in-memory (nessuna mutazione del pom utente)
-- [ ] #4 Oracolo: le ablazioni bidirezionali di TASK-38 confermano i crediti del grafo
-- [ ] #5 Dichiarazione di totalita' onesta nei docs (build + riferimenti statici coperti; residuo runtime-only documentato)
-- [ ] #6 Bench aggiornati deliberatamente; suite completa verde
+- [x] #1 Grafo build-step estratto dai deployment jar nell'albero (riuso di BuildStepsListGenerator dove possibile)
+- [x] #2 Crediti con evidenza-lato (X consumato da Y via build item Z); sola chiusura transitiva se il banco la richiede
+- [x] #3 Probe mode -Dqea.probe=true con filtro in-memory (nessuna mutazione del pom utente)
+- [x] #4 Oracolo: le ablazioni bidirezionali di TASK-38 confermano i crediti del grafo
+- [x] #5 Dichiarazione di totalita' onesta nei docs (build + riferimenti statici coperti; residuo runtime-only documentato)
+- [x] #6 Bench aggiornati deliberatamente; suite completa verde
 <!-- AC:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Run /simplify on the changed code and apply the cleanups it surfaces
-- [ ] #2 Run /code-review at high effort on the final diff and resolve every finding
+- [x] #1 Run /simplify on the changed code and apply the cleanups it surfaces
+- [x] #2 Run /code-review at high effort on the final diff and resolve every finding
 <!-- DOD:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Both rungs shipped. RUNG 3 (commit 952266e): BuildStepGraph mines @BuildStep return/param types across the resolved deployment artifacts (direct, required, non-self, exact-FQCN; Item-suffix prefilter and Multi/Produce shapes documented as v1 boundaries); the engine's sixth parameter generalized to a full authority-agnostic evidence map; three compile-in-memory pins with the REAL @BuildStep FQCN; all seven bench apps at baseline with the graph live (the join subsumes it on every bench app; its marginal space is item consumption without a descriptor-forced runtime declaration). RUNG 4 (commit 088fcb5): -Dqea.probe re-resolves the app model per suspect from the same direct deps minus the suspect (resolveUserDependencies in-memory hook; buildResolver extracted and shared; no pom mutation); ground-truth verified on jwt-qs (rest-jackson, ablation-proven removable, resolves without it) and apicurio (both suspects resolvable); bench all-green (opt-in). The four-rung total-detection ladder is complete: deployment-tree join, sibling scan, build-step graph, resolution probe. 181 tests green.
+<!-- SECTION:FINAL_SUMMARY:END -->
