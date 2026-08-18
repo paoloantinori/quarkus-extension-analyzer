@@ -29,9 +29,12 @@ mvn clean install    # full reactor, runs all suites incl. the shaded IT
 ```
 
 Java 17; `quarkus.version` (root pom) pins the bootstrap APIs, currently
-3.38.2. The suite map: core holds the 52-test behavioral rules suite
-(`AnnotationConsumerRulesBehaviorTest`), the config/value-rules suites, and
-the analyzer suites; `shaded` holds the runner derivation test and
+3.38.2. The suite map: core holds the behavioral rules suite
+(`AnnotationConsumerRulesBehaviorTest`), the shape matrix
+(`AnnotationConsumerRulesShapeMatrixTest`: every type-mention rule x every
+generic declaration shape, semantics documented per cell), the build-step
+graph and runtime-verification-plan suites, the config/value-rules suites,
+and the analyzer suites; `shaded` holds the runner derivation test and
 `ShadedJarRelocationIT` (failsafe, runs AFTER shade); `extension-deployment`
 holds the adapter tests.
 
@@ -56,25 +59,39 @@ holds the adapter tests.
    The seven packages must cover the jar's actual `io.quarkus` content
    (bootstrap, commons, fs, maven, paths, sbom, util) - re-check on a
    quarkus.version bump.
-3. **One engine, two shells.** The annotation-consumer engine is
-   `core .../plugin/annotation/AnnotationConsumerRules`, parameterized by
-   (declaredExtensionGas, dbKindValues, projectRoot) instead of
-   ApplicationModel (a bootstrap type core must not depend on). The
-   declared-GA derivation is therefore duplicated in the two shells
-   (`AnnotationAttribution.collectDeclaredExtensionGas` and the runner's
-   copy) - both copies are pinned by tests; keep them in sync.
-4. **Index scope:** the mojo feeds the engine an index over the module's MAIN
-   classes only (matching the extension form's ArC bean-index scope; a
-   test-only `@Path` stub must not credit a serializer). The bytecode SIGNAL
-   deliberately keeps its wider main+test scope.
+3. **One engine, two shells, three authorities.** The annotation-consumer
+   engine is `core .../plugin/annotation/AnnotationConsumerRules`,
+   parameterized by (declaredExtensionGas, dbKindValues, projectRoot,
+   evidenceByGa) instead of ApplicationModel (a bootstrap type core must
+   not depend on). The evidence map is authority-agnostic: the shells
+   compose the deployment-tree join, the own-sibling scan, and the
+   build-step graph (`core .../buildsteps/BuildStepGraph`) into full
+   evidence strings. The declared-GA derivation is duplicated in the two
+   shells - both copies are pinned by tests; keep them in sync.
+4. **Two index scopes, deliberately different.** The bytecode SIGNAL
+   indexes the app CLOSURE (own classes + resolved workspace siblings'
+   classes, directory or derived-from-installed-jar shapes): the verdict
+   answers "removable from the application?". The annotation-consumer
+   ENGINE index stays module-local (main classes, matching the extension
+   form's ArC bean-index scope; a test-only `@Path` stub must not credit
+   a serializer, and library-module bytecode would credit framework
+   annotations processed by generated code, not app usage).
 
 ## Bench
 
-- Active bench: `/private/tmp/super-heroes-fresh` (fresh clone, platform
-  3.38.1) and `/private/tmp/quarkus-quickstarts`. The OLD
-  `/private/tmp/super-heroes` workspace is DAMAGED (an Aug-16 copy gutted
-  .git and dropped the openapi specs; `generate-code` NPEs even pristine) -
-  do not use it.
+```bash
+scripts/bench-snapshot.sh            # 7 pinned apps; drift = non-zero exit
+scripts/bench-snapshot.sh --update   # deliberate refresh; record why in the work log
+```
+
+- Active bench: `/private/tmp/super-heroes-fresh` (platform 3.38.1),
+  `/private/tmp/quarkus-quickstarts` (3.38.2),
+  `/private/tmp/apicurio-registry-fresh` (app module), and
+  `/private/tmp/keycloak-267` (quarkus/runtime at 26.7.0; builds from
+  Central artifacts alone). The OLD `/private/tmp/super-heroes` workspace
+  is DAMAGED (an Aug-16 copy gutted .git and dropped the openapi specs;
+  `generate-code` NPEs even pristine) - do not use it; the old
+  apicurio-registry workspace is damaged the same way.
 - When benching the extension form: back up the app pom FIRST, insert the
   dependency anchored AFTER `</dependencyManagement>` (a naive insert after
   the first `<dependencies>` lands inside dependencyManagement and the build

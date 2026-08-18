@@ -39,7 +39,7 @@ report, from the twenty load-bearing ones around it.
 ## The idea
 
 Classify each declared Quarkus extension as **used** or **suspect** by combining
-three signals that together approximate what augmentation actually does:
+four signals that together approximate what augmentation actually does:
 
 1. **Config-root match**: any configuration key belonging to the extension's
    config roots appears in any profile of `application.properties`/`application.yaml`.
@@ -71,6 +71,19 @@ An extension flagged by none of the signals (nor the rules pass) is reported
 as *suspect*, with the evidence trail. Output is report-only, plus a generated
 ignore-list fragment compatible with `maven-dependency-plugin` and DepClean, so
 the tool composes with the existing ecosystem instead of replacing it.
+
+### Scope and totality
+
+Verdicts are **application-scoped**: the bytecode signal indexes the whole app
+closure (the analyzed module plus its resolved workspace siblings), so a
+dependency declared in one module but referenced only by a sibling's code is
+correctly credited. What static analysis cannot see is handled explicitly
+rather than ignored: a near-miss telemetry reports almost-evidence on suspect
+rows, an opt-in probe mode (`-Dqea.probe=true`) re-resolves the app model
+without each suspect to ask the bootstrap itself, and every report with
+suspects carries concrete runtime verification steps (curl commands, log
+checks, or the remove-and-test protocol) a human tester or an agent can run
+against the started application.
 
 ## Why this doesn't exist yet
 
