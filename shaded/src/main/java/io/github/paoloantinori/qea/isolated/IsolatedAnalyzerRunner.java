@@ -108,6 +108,11 @@ public final class IsolatedAnalyzerRunner {
                     .writeFragments(report.ignoreRecommendations(), fragmentsDir);
         }
         String text = Reporter.toText(report);
+        String verification = io.github.paoloantinori.qea.plugin.report.RuntimeVerificationPlan
+                .plan(report.dependencies());
+        if (!verification.isEmpty()) {
+            text += "\n" + verification;
+        }
         if (probe) {
             text += "\n" + probeSuspects(session, project, repoSystem, remoteRepoManager,
                     settingsDecrypter, model, report);

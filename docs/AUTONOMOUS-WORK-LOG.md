@@ -1471,3 +1471,30 @@ che rendano il detect totale") is now fully shipped:
 
 with the honest totality statement: total for BUILD-load-bearing (3+4) and
 static references (the signals), the runtime-only residual documented.
+
+### Work unit 43, 2026-08-18, TASK-41: runtime verification plan (the residual, delegated)
+
+The user's idea that closes the honest-totality gap from the consumer
+side: the runtime-only residual (invisible to any static analysis BY
+CONSTRUCTION) becomes an actionable checklist emitted with the report.
+RuntimeVerificationPlan in core: per SUSPECT extension row, curated
+concrete steps for the families with well-known runtime surface (curl
+/q/info, /q/health, /q/metrics, /q/openapi; POJO-endpoint JSON body
+checks for serializers; log-watching for @Scheduler; JWT auth call;
+yaml-key behavior), and the four-step generic ablation protocol for
+everything else (remove, mvn verify, smoke the surface, re-add+record if
+broken - with the near-miss telemetry named as the feedback channel).
+Written for two readers at once: a human tester AND an agent (commands
+are copy-pasteable curl/log greps; steps are ordered and self-contained).
+Text-report only: the plan is derived, not data, so the JSON schema and
+every expected file stay untouched (bench zero drift verified).
+
+Live on rest-heroes: the two runtime-only suspects (info,
+micrometer-opentelemetry) each get their concrete check. Pinned by six
+core tests (curated vs generic, scheduler behavior pointer, empty cases,
+analyzer-self excluded, plain jars excluded).
+
+The completeness story is now a closed loop: build-time total where
+statically possible (the four-rung ladder), runtime residual delegated
+with exact instructions, and the probe mode bridging the two
+(resolution-level ablation in-tool).
