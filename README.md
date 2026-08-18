@@ -137,6 +137,9 @@ bytecode signal needs `target/classes` to exist). Useful flags:
 
 - `-Dqea.reportFile=target/quarkus-extension-analysis.json` -- also write the JSON report
 - `-Dqea.failOnSuspect=true` -- fail the build if any directly-declared dependency is `suspect`
+- `-Dqea.probe=true` -- after the report, re-resolve the app model without each extension suspect
+  (in-memory, no pom mutation) and append the bootstrap's verdict per suspect: the ablation
+  methodology as a tool mode, the natural CI gate before acting on a report
 - `-Dqea.applicationConfig=/path/to/application.yaml` -- override the auto-discovered config file
 - `-Dqea.ignoreFragments=true` -- also write `qea-mdp-ignores.xml` and `qea-depclean-ignores.xml`
   to the build directory: ready-to-paste ignore-list fragments for maven-dependency-plugin's

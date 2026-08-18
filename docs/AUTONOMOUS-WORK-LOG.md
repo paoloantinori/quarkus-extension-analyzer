@@ -1455,3 +1455,19 @@ buildResolver wraps BootstrapMavenException into the IOException contract.
 
 The total-detection ladder is now COMPLETE at four rungs: deployment-tree
 join (1), sibling scan (2), build-step graph (3), resolution probe (4).
+
+### Work unit 43, 2026-08-18, TASK-40 closed: docs and the ladder complete
+
+README gains the -Dqea.probe flag in the useful-flags list (the natural CI
+gate framing); CLAUDE.md's mojo flag inventory updated. TASK-40 moved to
+completed with both rungs' final summary. The total-detection ladder that
+started as the user's challenge ("ragiona su possibili soluzioni complete
+che rendano il detect totale") is now fully shipped:
+
+  rung 1  deployment-tree join        (TASK-38, commit 3e91905)
+  rung 2  sibling scan                (TASK-39, commit a12f12e)
+  rung 3  build-step graph            (TASK-40, commit 952266e)
+  rung 4  resolution probe            (TASK-40, commit 088fcb5)
+
+with the honest totality statement: total for BUILD-load-bearing (3+4) and
+static references (the signals), the runtime-only residual documented.

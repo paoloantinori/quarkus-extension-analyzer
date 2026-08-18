@@ -82,7 +82,8 @@ holds the adapter tests.
   refs afterwards.
 - Mojo form: `mvn compile io.github.paoloantinori:quarkus-extension-analyzer-maven-plugin:1.0-SNAPSHOT:analyze`
   (flags: `-Dqea.reportFile=`, `-Dqea.failOnSuspect=`, `-Dqea.applicationConfig=`,
-  `-Dqea.ignoreFragments=`, `-Dqea.vocabularySignal=`, `-Dqea.debugAttribution=`, `-Dqea.skip=`).
+  `-Dqea.ignoreFragments=`, `-Dqea.vocabularySignal=`, `-Dqea.debugAttribution=`, `-Dqea.probe=`,
+  `-Dqea.skip=`).
 
 ## Working conventions
 
