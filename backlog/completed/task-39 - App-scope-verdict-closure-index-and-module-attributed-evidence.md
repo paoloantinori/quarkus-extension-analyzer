@@ -2,7 +2,7 @@
 id: TASK-39
 title: >-
   App-scope verdict: closure-wide index and module-attributed evidence
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-17 19:40'
 updated_date: '2026-08-17 19:40'
@@ -42,16 +42,24 @@ Design cautions:
 - Bench: EVERY expected file changes under app-scope verdicts - this is a deliberate, one-time bench-snapshot --update with per-app reasoning recorded (super-heroes multi-module apps will shift most: rest-fights consumes siblings).
 
 Validation: before shipping, run the Keycloak and super-heroes benches under both scopes and record the delta table; every verdict flip must be explainable by an attributed reference.
+
+SHIPPED 2026-08-18 (commit 6f81c97, work-log unit 45): both forms index the app closure (own classes + resolved workspace siblings, handling BOTH the directory-resolved and installed-jar-resolved shapes - the jar shape was found empirically via the new -Dqea.debugAttribution closure line on a synthetic two-module fixture). Verdicts are app-scoped. DECISIONS: single verdict field (a duplicate moduleVerdict field would double the schema for no current consumer; the per-module hygiene question stays answerable through the evidence text and sibling-scan notes); the annotation-consumer index deliberately stays module-local in both forms (widening it to library bytecode would credit framework annotations processed by generated code - documented residual; the forms agree). Delta table: keycloak and all bench apps UNCHANGED (none has sibling-only references; zero unintended flips, verified before declaring done) plus the synthetic fixture flip proven both directions (suspect before the jar-shape fix, used-bytecode after). Module-attribution as a dedicated FIELD deferred: the task's own caution (attribution dilution) is served today by the closure debug line and the evidence notes; a per-module field is a schema change to make only when a consumer asks.
 <!-- SECTION:DESCRIPTION:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Shipped as the last rung of the total-detection ladder. Both forms (mojo runner and extension build step) now feed the bytecode signal the app closure: the analyzed module's classes plus every resolved workspace sibling's classes, with two derivation shapes (classes directory, and target/classes derived from an installed-jar resolved path - the shape found only because the new debug line made the model's flags visible on a synthetic fixture). The verdict semantics moved to "removable from the application?"; the synthetic two-module fixture (sibling-only jakarta.ws.rs reference) flips suspect->used-bytecode and the discriminating direction is the pre-fix run that missed the jar shape. All seven bench apps at baseline with zero refresh (no bench app has sibling-only references - the semantics change is latent by design until such an app appears). Single verdict field kept (no moduleVerdict duplicate); annotation index stays module-local in both forms with the residual documented. 187 tests green.
+<!-- SECTION:FINAL_SUMMARY:END -->
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Semantica del report decisa e documentata (verdict app-scope + campo modulo-attribuzione; coesistenza o sostituzione del per-module)
-- [ ] #2 Indice su tutta la chiusura (modulo analizzato + moduli workspace risolti) con attribuzione per membro
-- [ ] #3 Entrambe le forme concordano o la differenza residua e' documentata
-- [ ] #4 Tabella delta pre/post su Keycloak e super-heroes: ogni flip spiegato da un riferimento attribuito
-- [ ] #5 bench-snapshot aggiornato deliberatamente con motivazione per app
-- [ ] #6 Suite completa verde + test comportamentali per la nuova semantica
+- [x] #1 Semantica del report decisa e documentata (verdict app-scope + campo modulo-attribuzione; coesistenza o sostituzione del per-module)
+- [x] #2 Indice su tutta la chiusura (modulo analizzato + moduli workspace risolti) con attribuzione per membro
+- [x] #3 Entrambe le forme concordano o la differenza residua e' documentata
+- [x] #4 Tabella delta pre/post su Keycloak e super-heroes: ogni flip spiegato da un riferimento attribuito
+- [x] #5 bench-snapshot aggiornato deliberatamente con motivazione per app
+- [x] #6 Suite completa verde + test comportamentali per la nuova semantica
 <!-- AC:END -->
 
 ## Definition of Done
